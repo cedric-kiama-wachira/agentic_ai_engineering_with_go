@@ -229,3 +229,4 @@ Not blockers; logical follow-ons to the bootstrap foundation.
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-06-05 | Cedric Kiama Wachira | Initial bootstrap record. |
+| 2026-06-05 | Cedric Kiama Wachira | Ruleset enforcement found disabled after repo set to private on personal Free plan; restored by reverting to public. Permanent remediation: migration to air-gapped GitHub Enterprise (scheduled). |
