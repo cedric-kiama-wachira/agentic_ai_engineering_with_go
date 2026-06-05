@@ -53,3 +53,7 @@ Thumbs.db
 *.log
 tmp/
 .tmp/
+
+# --- Go build artifacts at repo root ---
+/agent
+coverage.out
