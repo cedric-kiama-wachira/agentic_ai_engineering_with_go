@@ -20,3 +20,4 @@ func run() error {
 	fmt.Printf("agentic-ai-lab agent %s — Go is ready.\n", Version)
 	return nil
 }
+// trivial change
