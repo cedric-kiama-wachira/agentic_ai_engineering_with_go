@@ -1,0 +1,13 @@
+# Code Owners for agentic_ai_engineering_with_go
+# Syntax: <path>  <owner1> <owner2>
+# Owners are auto-requested for review on matching PRs.
+
+# Default owner for everything
+*                       @cedric-kiama-wachira
+
+# CI / repo governance — guard these carefully
+/.github/               @cedric-kiama-wachira
+
+# Go module + dependency manifests
+/go.mod                 @cedric-kiama-wachira
+/go.sum                 @cedric-kiama-wachira
