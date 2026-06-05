@@ -1,0 +1,55 @@
+# --- Go ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+go.work
+go.work.sum
+# vendor/        # uncomment if you do NOT commit vendored deps
+
+# --- Build output ---
+/bin/
+/dist/
+/build/
+
+# --- Secrets & env (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+credentials*.json
+secrets*.y*ml
+id_rsa
+id_ed25519
+id_ecdsa
+
+# --- AI/ML artifacts (use Git LFS or external storage instead) ---
+*.gguf
+*.safetensors
+*.bin
+models/
+.cache/
+embeddings/
+
+# --- IDE / editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs / temp ---
+*.log
+tmp/
+.tmp/
