@@ -41,3 +41,19 @@ jobs:
 
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
+
+  security:
+    name: security / govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache: true
+
+      - name: Run govulncheck
+        run: go tool govulncheck ./...
