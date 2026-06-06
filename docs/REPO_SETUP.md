@@ -35,7 +35,7 @@ posture, suitable for audit review.
 | Go module | `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
 | Go version | 1.26.1 (pinned in CI; stated in README prerequisites) |
 | Source layout | `cmd/agent/main.go`, `cmd/agent/main_test.go` |
-| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `docs/REPO_SETUP.md` |
+| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `docs/REPO_SETUP.md` |
 | CI | `.github/workflows/ci.yml` |
 | Secret scanning | GitGuardian (GitHub App) |
 
@@ -256,8 +256,9 @@ persist into team operation; all are resolved by the GHES migration.
 | 1 | **Second account (`digital-factory-dm`) used as approving reviewer** on PRs #1, #2, #4 | Exercised an authentic two-person-review event during bootstrap | **Not genuine separation of duties** — both accounts controlled by one person. Superseded by independent human reviewers via enterprise IdP and teams. (Also confirm work-identity usage complies with applicable identity policy.) |
 | 2 | **Shared deploy key used for human push access** | Single operator during bootstrap | Deploy keys are repo-scoped and not person-attributable. Retire for human use; each developer authenticates with their own account auth + signing keys. Reserve deploy keys for CI/CD or server deploys. |
 | 3 | **Repository on a personal account and kept public** for ruleset enforcement | Only configuration under which Free-plan rulesets enforce | Migrate to **air-gapped GHES**: private + enforced is the default; no public exposure. |
+| 4 | **Interim email security contact (`theemail@mail.com`) in `SECURITY.md`** | Single operator during bootstrap; PVR is the preferred channel regardless | Replace with a monitored organizational security mailbox at the GHES migration (see Section 14.2). |
 
-### GHES (air-gapped) migration tasks — three items do not port unchanged
+### GHES (air-gapped) migration tasks — items that do not port unchanged
 
 1. **CI runners:** replace `runs-on: ubuntu-latest` with **self-hosted runners**
    registered inside the perimeter. `actions/checkout@v4` and
@@ -270,6 +271,9 @@ persist into team operation; all are resolved by the GHES migration.
    to **organisation-level rulesets** so all repos inherit them; wire identity to
    the **enterprise IdP** (SAML/LDAP) to enable genuine separation of duties and
    per-developer signing — retiring deviations #1 and #2 above.
+4. **Vulnerability intake:** GitHub Private Vulnerability Reporting is a
+   GitHub.com feature; on air-gapped GHES use the GHES security-advisory
+   mechanism or the enterprise vulnerability-intake process (see Section 14.4).
 
 ---
 
@@ -300,6 +304,75 @@ Not blockers; logical follow-ons to the bootstrap foundation.
 - [ ] CI workflow token permission is `contents: read`.
 - [ ] GitGuardian installation scope confirmed and recorded (Section 7).
 - [ ] A test PR confirms checks gate merges with nothing stuck "pending".
+- [ ] `SECURITY.md` present at repo root; Private Vulnerability Reporting enabled (Section 14).
+
+---
+
+## 14. OpenSSF Hardening — Phase 0 (Baseline & Security Policy)
+
+This section records the first phase of the OpenSSF Foundation Hardening Plan
+(`OPENSSF_FOUNDATION_HARDENING_PLAN.md`), executed through the governed PR flow.
+
+### 14.1 Scorecard baseline
+
+OpenSSF Scorecard **v5.4.0** was run against the live repository to establish a
+measurable security-posture baseline before any hardening changes.
+
+| Run | Commit scanned | Aggregate | Notes |
+|-----|----------------|-----------|-------|
+| Baseline (pre-policy) | `11fc900` (develop tip before PR #6) | **5.0 / 10** | Captured from terminal output; Security-Policy 0/10 |
+| Phase 0 exit (post-policy) | `6bfc061` (PR #6 merge) | **5.6 / 10** | Machine-readable evidence: `docs/scorecard-phase0.json` |
+
+The full check breakdown is preserved in `docs/scorecard-phase0.json` (scanned
+at commit `6bfc061`, 2026-06-06). Scores of note at baseline:
+
+- **10/10:** Binary-Artifacts, Dangerous-Workflow, License, Token-Permissions,
+  Vulnerabilities — validating the existing bootstrap controls (least-privilege
+  CI token, no committed binaries, no dangerous workflow patterns).
+- **5/10 Branch-Protection:** the three `Warn` items (1 approval on `develop`,
+  CODEOWNERS review not required on `develop`, last-push-approval disabled) are
+  **deliberate** — the governance model holds `main` strict (2 approvals, linear
+  history, CODEOWNERS) and `develop` relaxed as the integration branch. Scorecard
+  scores against a maximalist single-branch ideal that does not model this split.
+  Not treated as a defect; documented as an accepted, auditable design choice.
+- **0/10 or `?` (planned backlog, not defects):** Security-Policy (closed this
+  phase), SAST, Pinned-Dependencies, Dependency-Update-Tool, Fuzzing,
+  Signed-Releases, Packaging — each scheduled in Phases 1–3 of the hardening plan.
+- **Maintained 0/10** (repo <90 days) and **Contributors 0/10** (single-operator
+  bootstrap) resolve with time and the team/GHES migration respectively.
+
+### 14.2 Security policy (Security-Policy 0 → 10)
+
+A coordinated-disclosure `SECURITY.md` was added at repository root (PR #6,
+commit `5c5838d`, signed and verified). Scorecard confirmed all four sub-signals:
+policy file detected, linked content, disclosure/timelines present, and policy
+text present.
+
+The policy advertises two intake channels:
+1. **GitHub Private Vulnerability Reporting** — enabled at the repository level
+   (Settings → Advanced Security). Verified live: the Security → Advisories
+   triage queue is operational. *Note: this is a repository setting, not a
+   committed artifact, so it is recorded here rather than carried by a PR.*
+2. **Interim email contact** (`theemail@mail.com`) — a bootstrap-phase
+   stand-in, to be replaced by a monitored organizational security mailbox at
+   the GHES migration. Recorded as interim deviation #4 in Section 11.
+
+### 14.3 Scope note — DAST gap
+
+Scorecard measures repository/supply-chain posture and does not perform dynamic
+analysis (DAST). LFD121's verification model calls for both static and dynamic
+analysis. Static analysis is addressed in Phase 1 (`govulncheck`, `gosec`);
+dynamic testing of the agent runtime (untrusted-content ingestion, tool-call
+surface) is recorded here as an open gap to be addressed once an agent runtime
+exists, and folded into the threat model (Phase 1).
+
+### 14.4 Air-gapped portability note
+
+GitHub Private Vulnerability Reporting is a GitHub.com feature. On air-gapped
+GHES the equivalent is GHES's own security-advisory mechanism or the enterprise
+vulnerability-intake process. Added to the set of items (alongside cloud
+GitGuardian, hosted runners, and — for later phases — cosign keyless / SLSA
+public infrastructure) that do not port unchanged to the air-gapped target.
 
 ---
 
@@ -310,3 +383,4 @@ Not blockers; logical follow-ons to the bootstrap foundation.
 | 2026-06-05 | Cedric Kiama Wachira | Initial bootstrap record. |
 | 2026-06-05 | Cedric Kiama Wachira | Ruleset enforcement found disabled after repo set to private on personal Free plan; restored by reverting to public. Permanent remediation: migration to air-gapped GitHub Enterprise (scheduled). |
 | 2026-06-05 | Cedric Kiama Wachira | Record completed post-bootstrap: added PR #4 evidence, Section 10 incidents/detections (key-role collision, CI go.sum guard, stray binary, stray GitGuardian check, enforcement-disabled incident), and Section 11 air-gapped GHES migration tasks. |
+| 2026-06-06 | Cedric Kiama Wachira | OpenSSF Hardening Phase 0: established Scorecard v5.4.0 baseline (5.0 to 5.6); added coordinated-disclosure `SECURITY.md` (Security-Policy 0 to 10, PR #6) and enabled GitHub Private Vulnerability Reporting; committed scan evidence `docs/scorecard-phase0.json`. Added Section 14 and interim deviation #4 (interim email security contact pending an organizational security mailbox at GHES migration). |
