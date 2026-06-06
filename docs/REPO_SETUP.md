@@ -5,23 +5,23 @@
 **Branching model:** Git Flow
 **Record prepared:** 2026-06-05
 **Prepared by:** Cedric Kiama Wachira (repository architect)
-**Status:** Bootstrap complete — pending organisation migration at team onboarding
+**Status:** Bootstrap complete — pending migration to air-gapped GitHub Enterprise Server (GHES)
 
 > **Auditor note.** This document records the controls configured during the
-> bootstrap phase and the evidence that each was verified on live artifacts.
-> The rule values in §5 reflect the intended configuration; before formal
-> submission, confirm them against the live rulesets at
-> `Settings → Rules → Rulesets`, as they may be tuned over time.
+> bootstrap phase, the evidence that each was verified on live artifacts, and
+> the issues detected and remediated along the way. The rule values in Section 5
+> reflect the intended configuration; before formal submission, confirm them
+> against the live rulesets at `Settings → Rules → Rulesets`.
 
 ---
 
 ## 1. Purpose
 
-This repository is the foundation for an Agentic AI engineering initiative
-(implemented in Go). It is designed to onboard ~30 developers behind controls
-that enforce themselves, so that secure, reviewed, spec-driven development can
-proceed without relying on individual discipline. This record documents the
-governance posture established before the team joins.
+This repository is the bootstrap foundation for an Agentic AI engineering
+initiative implemented in Go. It is built so that governance controls enforce
+themselves — secure, reviewed, signed, spec-driven development — rather than
+relying on individual discipline. This record is the evidence package for that
+posture, suitable for audit review.
 
 ---
 
@@ -29,55 +29,65 @@ governance posture established before the team joins.
 
 | Item | Value |
 |------|-------|
+| Working directory | `~/Agentic_AI_Lab/GO_Labs/lab_1` |
 | Default branch | `develop` |
 | Protected branches | `main`, `develop` |
-| Source layout | `cmd/agent/` (entrypoint), Go module `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
-| Governance files | `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md` |
+| Go module | `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
+| Go version | 1.26.1 (pinned in CI; stated in README prerequisites) |
+| Source layout | `cmd/agent/main.go`, `cmd/agent/main_test.go` |
+| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `docs/REPO_SETUP.md` |
 | CI | `.github/workflows/ci.yml` |
+| Secret scanning | GitGuardian (GitHub App) |
 
 ---
 
 ## 3. Cryptographic Key Architecture
 
-Three distinct key-roles are used. A deliberate design decision was made to use
-**separate keys for transport and signing**, because GitHub enforces that any
-single public key is globally unique to one role across the platform — a repo
-deploy key cannot simultaneously be registered as an account key. Separating
-the keys also follows least-privilege: transport (push) and identity (signing)
-are independent concerns.
+Three distinct key-roles are used. A deliberate decision was made to use
+**separate keys for transport and signing**. This was reinforced by a hard
+constraint discovered during setup (see Section 10, incident #1): GitHub enforces that
+any single public key is globally unique to one role across the platform — a
+repository deploy key cannot also be registered as an account key. Separating
+keys also follows least-privilege; transport (push) and identity (signing) are
+independent concerns.
 
-| Role | Key | Algorithm | Where registered | Purpose |
+| Role | Key | Algorithm | Registered where | Purpose |
 |------|-----|-----------|------------------|---------|
-| **Transport / deploy** | `id_dev_agentic_ai_lab_ed25519` | Ed25519 | Repo **Deploy key** (write access); referenced in local `~/.ssh/config` under Host alias `dev_agentic_ai` | Authenticates `git push`/`pull` to the repository |
-| **Commit signing (local)** | `id_signing_agentic_ai_lab_ed25519` | Ed25519 | `git config user.signingkey` + `~/.ssh/allowed_signers` | Signs commits; enables local signature verification |
-| **Commit signing (GitHub)** | same public key as above | Ed25519 | Account **SSH and GPG keys → Signing key** (`SHA256:QlTAWcCOBrHWsxpOeqJQhQS4gR5z8QLac1uZObv4m/w`) | Enables GitHub-side "Verified" badge on signed commits |
+| **Transport / deploy** | `id_dev_agentic_ai_lab_ed25519` | Ed25519 | Repo **Deploy key** (write access); referenced in local `~/.ssh/config` under Host alias `dev_agentic_ai` | Authenticates `git push`/`pull` |
+| **Commit signing (local)** | `id_signing_agentic_ai_lab_ed25519` | Ed25519 | `git config --local user.signingkey` + `~/.ssh/allowed_signers` | Signs commits; enables local signature verification |
+| **Commit signing (account)** | same public key as signing key above | Ed25519 | Account **SSH and GPG keys → Signing key** — `SHA256:QlTAWcCOBrHWsxpOeqJQhQS4gR5z8QLac1uZObv4m/w` | Enables GitHub-side "Verified" badge |
 
 **Notes for audit:**
-- Signing keys are **not** placed in `~/.ssh/config` — signing performs no network
-  connection, so it has no SSH Host entry. This is correct and intentional.
-- Merge commits created through the GitHub web UI are signed by GitHub's own
-  web-flow key and display as "Verified"; this satisfies the signed-commit rule.
-  Local `git log --show-signature` on such commits reports "cannot check
-  signature — no public key" because GitHub's key is not in the local keyring;
-  this is cosmetic, not a verification failure.
+- The SSH key was generated with `ssh-keygen -t ed25519`; an `-b 4096` flag used
+  initially is silently ignored for Ed25519 (key size is fixed at 256-bit) — the
+  key is valid and strong.
+- Signing keys are **not** placed in `~/.ssh/config` — signing performs no
+  network connection and therefore has no SSH Host entry. This is intentional.
+- Git identity (`user.name`, `user.email`) is set **locally** (`--local`) to
+  avoid a stray global identity mis-attributing commits.
+- Merge commits created via the GitHub web UI are signed by GitHub's web-flow
+  key and display as "Verified", satisfying the signed-commit rule. Local
+  `git log --show-signature` on such commits reports "cannot check signature —
+  no public key" because GitHub's key is not in the local keyring; this is
+  cosmetic, not a verification failure.
 
 ---
 
 ## 4. Branching Model (Git Flow)
 
-Direct commits to `main` and `develop` are prohibited by ruleset (§5). All
+Direct commits to `main` and `develop` are prohibited by ruleset (Section 5). All
 changes enter through reviewed pull requests.
 
 | Branch | Branches from | Merges into | Purpose |
 |--------|---------------|-------------|---------|
 | `main` | — | — | Production-ready, tagged releases |
-| `develop` | `main` | `main` (via PR) | Integration branch (default) |
+| `develop` | `main` | `main` (via PR) | Integration branch (repository default) |
 | `feature/*` | `develop` | `develop` (via PR) | New work |
 | `bugfix/*` | `develop` | `develop` (via PR) | Non-urgent fixes |
 | `hotfix/*` | `main` | `main` + `develop` | Urgent production fixes |
 
-Branch naming and commit conventions (Conventional Commits) are documented in
-`CONTRIBUTING.md`.
+Branch naming (`<type>/<ticket-id>-<short-kebab-description>`) and Conventional
+Commits are documented in `CONTRIBUTING.md`.
 
 ---
 
@@ -97,7 +107,7 @@ audit trails, and Evaluate mode) are active, each targeting one branch.
 | Require pull request before merging | Enabled — **2** approvals, dismiss stale approvals on new commits, require Code Owner review |
 | Require signed commits | Enabled |
 | Require status checks to pass | Enabled — `build / vet / test`, `GitGuardian Security Checks`; require branches up to date before merging |
-| Bypass list | **Empty** (no actor, including admin, may bypass silently) |
+| Bypass list | **Empty** |
 
 ### 5.2 `protect-develop` (targets `develop`)
 
@@ -114,8 +124,14 @@ audit trails, and Evaluate mode) are active, each targeting one branch.
 **Design rationale:** `main` is held strictly (two-person review, linear
 history) as the release branch; `develop` is slightly relaxed (single approval,
 merge commits allowed) as the high-traffic integration branch. The empty bypass
-list means any override is performed deliberately and is logged as a recorded
-rule bypass — an auditable event rather than a silent one.
+lists mean any override is performed deliberately and is logged as a recorded
+rule bypass — auditable rather than silent.
+
+> **Enforcement caveat (critical).** On a personal GitHub Free account, rulesets
+> are enforced on **public** repositories only; on a **private** repository the
+> configuration is retained but **enforcement is silently disabled**. The repo
+> is therefore kept **public** for the bootstrap phase. This dependency is the
+> primary driver for migration to GHES (Section 11). See incident #5 in Section 10.
 
 ---
 
@@ -127,16 +143,15 @@ rule bypass — an auditable event rather than a silent one.
 |----------|-------|
 | Triggers | `pull_request` and `push` to `develop`, `main` |
 | Token permissions | `contents: read` (least privilege) |
-| Runner | `ubuntu-latest` |
+| Runner | `ubuntu-latest` (GitHub-hosted) |
 | Go version | `1.26.1` (pinned to match local toolchain) |
-| Steps | checkout → setup-go (cached) → verify modules tidy → `go build ./...` → `go vet ./...` → `go test -race -coverprofile=coverage.out ./...` |
+| Steps | checkout@v4 → setup-go@v5 (cached) → verify modules tidy → `go build ./...` → `go vet ./...` → `go test -race -coverprofile=coverage.out ./...` |
 
 The module-tidiness step is written to tolerate the absence of `go.sum` (no
 external dependencies yet) and will automatically begin guarding `go.sum` once
-the first dependency is added. The race detector is enabled because the
-agentic runtime is concurrency-heavy.
-
-This CI job is a **required** status check on both protected branches (§5).
+the first dependency is added (see Section 10, incident #2). The race detector is
+enabled because the agentic runtime is concurrency-heavy. This job is a
+**required** status check on both protected branches (Section 5).
 
 ---
 
@@ -146,12 +161,13 @@ This CI job is a **required** status check on both protected branches (§5).
 |----------|-------|
 | Provider | GitGuardian (GitHub App) |
 | Required check name | `GitGuardian Security Checks` |
-| Status | Required on `main` and `develop` |
+| Status | Required on `main` and `develop`; observed passing ("No secrets detected") |
 
-**Open item for audit:** confirm the installation scope of the GitGuardian app
-(repository-level vs organisation-level) and record it here. A free-text
-"GitGuardian / Any source" entry was briefly added in error during setup and
-removed; only the app-reported `GitGuardian Security Checks` is required.
+**Open item for audit:** confirm and record the installation scope of the
+GitGuardian app (repository-level vs organisation-level). A stray free-text
+"GitGuardian / Any source" required check was added in error during setup and
+removed (see Section 10, incident #4); only the app-reported `GitGuardian Security
+Checks` is required.
 
 ---
 
@@ -160,66 +176,129 @@ removed; only the app-reported `GitGuardian Security Checks` is required.
 | Artifact | Function |
 |----------|----------|
 | `.github/CODEOWNERS` | Auto-requests owner review on matching paths; `.github/`, `go.mod`, `go.sum` guarded explicitly. Validated by GitHub ("CODEOWNERS file is valid"). |
-| `CONTRIBUTING.md` | Git Flow model, branch-naming convention, Conventional Commits, PR flow. |
-| `.github/pull_request_template.md` | Auto-populated checklist on every PR (branch origin, signing, tests, no-secrets). |
+| `CONTRIBUTING.md` | Git Flow model, branch-naming convention, Conventional Commits, PR flow, required approvals. |
+| `.github/pull_request_template.md` | Auto-populated checklist on every PR (branch origin, signing, tests, no-secrets). Verified auto-filling on PRs #2 and #4. |
+| `README.md` | Project intro, prerequisites (Go 1.26.1), getting-started (canonical clone URL, not the local Host alias). |
+| `LICENSE` | Apache-2.0 (explicit patent grant, suited to multi-contributor + corporate use). |
 
 ---
 
 ## 9. Bootstrap Validation Evidence
 
-Each control was proven on a live pull request, not merely configured.
+Each control was proven on a live pull request, not merely configured. Author /
+approver / merger roles are distinct in the record.
 
-| PR | Change | Outcome | Evidence |
-|----|--------|---------|----------|
-| #1 | Governance docs (CODEOWNERS, CONTRIBUTING, PR template) | Merged to `develop` via reviewed PR | Merge commit `cb8f769`; feature commit `e1ad152` Verified |
-| #2 | Go module, agent entrypoint, CI workflow | Merged to `develop` via reviewed PR | Merge commit `1b659e7` Verified; 2 checks passed |
-| #3 | Trivial change to confirm required checks gate merges | **Closed without merging** — verification only | `build / vet / test` and `GitGuardian Security Checks` both reported **Required** and green; review still correctly blocked merge |
+| PR | Change | Approved by | Merge commit | Outcome |
+|----|--------|-------------|--------------|---------|
+| #1 | Governance docs (CODEOWNERS, CONTRIBUTING, PR template) | `digital-factory-dm` | `cb8f769` | Merged to `develop` |
+| #2 | Go module, agent entrypoint, CI workflow | `digital-factory-dm` | `1b659e7` | Merged to `develop` (after CI fix, incident #2) |
+| #3 | Trivial change to verify required checks gate merges | — | — (closed, not merged) | **Verification only** — both required checks reported green & marked Required; review correctly still blocked merge |
+| #4 | Audit record (`docs/REPO_SETUP.md`) + README Go-version update | `digital-factory-dm` | `5d9a1fd` | Merged to `develop` (during which incident #5 was detected & remediated) |
 
-Additional verified behaviours during bootstrap:
-- A direct push to `develop` was **rejected** (`GH013` — "Changes must be made
-  through a pull request" and "Commits must have verified signatures"),
+**Repository history (develop):**
+
+```
+*   5d9a1fd  Merge PR #4  — audit record + remediation log
+|\
+| * 1e434f4  docs: log ruleset-enforcement remediation in change log
+| * 2473a38  docs: add repository setup and governance record for audit
+|/
+*   1b659e7  Merge PR #2  — Go module, agent entrypoint, CI workflow
+|\
+| * a4554df  ci: make module-tidy check robust when go.sum is absent
+| * ccbfb52  feat: scaffold Go module, agent entrypoint, and CI workflow
+|/
+*   cb8f769  Merge PR #1  — CODEOWNERS, contributing guide, PR template
+|\
+| * e1ad152  docs: add CODEOWNERS, contributing guide, and PR template
+|/
+* 81214ad  (main) chore: initialize repository with docs, license, and gitignore
+```
+
+**Other verified behaviours:**
+- A deliberate direct push to `develop` was **rejected** (`GH013` — "Changes must
+  be made through a pull request" and "Commits must have verified signatures"),
   confirming the PR-only and signed-commit rules.
-- Commit signatures verify end-to-end (local "Good signature"; GitHub
-  "Verified" badge).
+- Commit signatures verify end-to-end (local "Good signature"; GitHub "Verified"
+  badge) using the dedicated account signing key.
+- The required-status-checks gate was confirmed to block merges until both
+  checks report green, with no check stuck "pending" (PRs #3 and #4).
 
 ---
 
-## 10. Known Interim Deviations & Remediation Plan
+## 10. Incidents, Detections & Remediations (Bootstrap)
 
-These are bootstrap-phase compromises, recorded transparently. None are intended
-to persist into team operation.
+Issues caught during setup and how each was resolved. These demonstrate a
+functioning detect-and-correct process, not an absence of problems.
 
-| # | Deviation | Why acceptable now | Remediation at onboarding |
-|---|-----------|--------------------|---------------------------|
-| 1 | **Second account (`digital-factory-dm`, work email `cwachira.v@dm.gov.ae`) used as the approving reviewer** on PRs #1–#2. | Allowed an authentic two-person-review event to be exercised during bootstrap. | **Not genuine separation of duties** — two accounts controlled by one person. Real four-eyes review requires a *different human*. To be superseded by independent reviewers when the team joins. Confirm `dm.gov.ae` work-identity usage complies with the customer's own identity policy. |
-| 2 | **Shared deploy key used for human push access.** | Single operator during bootstrap; acceptable for one person. | Deploy keys are repo-scoped and not tied to a person, eroding attribution. Retire for human use; each developer to authenticate with their own account auth + signing keys. Reserve deploy keys for CI/CD or server deploys only. |
-| 3 | **Repository owned by a personal account.** | Fastest path to a working, protected repo. | Migrate to an **organisation-owned** repository before the 30 developers join; manage access via org **teams** (ideally SSO/SCIM) rather than individual collaborators; promote these rulesets to **organisation-level** so future repos inherit them. |
+| # | Detection | Root cause | Remediation |
+|---|-----------|------------|-------------|
+| 1 | "Key is already in use" when registering the signing key | Attempted to reuse the deploy key as an account signing key; GitHub keys are globally unique to one role | Generated a **dedicated** Ed25519 signing key; registered separately as an account Signing key (Section 3) |
+| 2 | CI `build / vet / test` failed in ~15s: `fatal: go.sum: no such path in the working tree` | `git diff --exit-code go.mod go.sum` errors when `go.sum` does not yet exist (zero dependencies) | Rewrote the tidy step to use `git status --porcelain` over existing paths; self-arms once `go.sum` appears |
+| 3 | Stray compiled binary `agent` in repo root after `go build ./...` | `go build ./...` emits the binary into the working directory | Removed the binary; hardened `.gitignore` (`/agent`, `coverage.out`); build artifacts excluded |
+| 4 | Required-checks list contained a non-functional "GitGuardian / Any source" entry | Free-text check name added in error; nothing reports a check by that literal name → would block all merges as permanently pending | Removed the stray entry; required only the real `GitGuardian Security Checks` |
+| 5 | **Ruleset enforcement silently disabled** (rulesets showed grey/disabled; PR review became optional) | Repository visibility was set to **private** on a personal Free account, where rulesets are not enforced on private repos | Reverted visibility to **public**; enforcement immediately restored. **Permanent remediation: migration to air-gapped GHES** (Section 11), where private + enforced is the default |
+
+**Process note:** incident #5 is the most significant — a control that silently
+stops enforcing yields false confidence. The lesson adopted: enforcement must be
+**verified on a live PR** (as done in PRs #3 and #4), not assumed from
+configuration.
 
 ---
 
-## 11. Recommended Next-Phase Enhancements
+## 11. Known Interim Deviations & Remediation Plan
+
+Bootstrap-phase compromises, recorded transparently. None are intended to
+persist into team operation; all are resolved by the GHES migration.
+
+| # | Deviation | Why acceptable now | Remediation at GHES migration |
+|---|-----------|--------------------|-------------------------------|
+| 1 | **Second account (`digital-factory-dm`) used as approving reviewer** on PRs #1, #2, #4 | Exercised an authentic two-person-review event during bootstrap | **Not genuine separation of duties** — both accounts controlled by one person. Superseded by independent human reviewers via enterprise IdP and teams. (Also confirm work-identity usage complies with applicable identity policy.) |
+| 2 | **Shared deploy key used for human push access** | Single operator during bootstrap | Deploy keys are repo-scoped and not person-attributable. Retire for human use; each developer authenticates with their own account auth + signing keys. Reserve deploy keys for CI/CD or server deploys. |
+| 3 | **Repository on a personal account and kept public** for ruleset enforcement | Only configuration under which Free-plan rulesets enforce | Migrate to **air-gapped GHES**: private + enforced is the default; no public exposure. |
+
+### GHES (air-gapped) migration tasks — three items do not port unchanged
+
+1. **CI runners:** replace `runs-on: ubuntu-latest` with **self-hosted runners**
+   registered inside the perimeter. `actions/checkout@v4` and
+   `actions/setup-go@v5` are pulled from the public marketplace — resolve via
+   **Actions sync** (mirrored into the instance) or vendored copies.
+2. **Secret scanning:** the cloud GitGuardian app cannot reach its SaaS in an
+   air-gapped network. Replace with **GHES Advanced Security secret scanning +
+   push protection**, or a self-hosted GitGuardian deployment.
+3. **Org-level governance & identity:** promote `protect-main` / `protect-develop`
+   to **organisation-level rulesets** so all repos inherit them; wire identity to
+   the **enterprise IdP** (SAML/LDAP) to enable genuine separation of duties and
+   per-developer signing — retiring deviations #1 and #2 above.
+
+---
+
+## 12. Recommended Next-Phase Enhancements
 
 Not blockers; logical follow-ons to the bootstrap foundation.
 
-- Organisation migration (resolves §10 #1–#3 together).
+- GHES migration (resolves all Section 11 deviations and the Section 5 enforcement caveat).
 - CodeQL code scanning (SAST) as an additional required check.
 - Dependabot for dependency and action updates.
 - Pin GitHub Action versions to commit SHAs (stricter supply-chain control).
 - Strict Code-Owner-specific approval enforced on `main`.
 - `release/*` branch flow with semantic version tagging.
 - Branch auto-deletion on merge.
+- `CODEOWNERS` entry for `/docs/` so future edits to this record require owner review.
 
 ---
 
-## 12. Verification Checklist (for re-audit)
+## 13. Verification Checklist (for re-audit)
 
-- [ ] Both rulesets `protect-main` and `protect-develop` show **Active**.
-- [ ] Bypass lists are empty on both.
+- [ ] Both rulesets `protect-main` and `protect-develop` show **Active** (green) — not disabled.
+- [ ] Repository visibility supports enforcement (public on Free plan, or hosted on GHES/Team).
+- [ ] Bypass lists are empty on both rulesets.
 - [ ] Required status checks on both: `build / vet / test`, `GitGuardian Security Checks`.
 - [ ] No stray free-text required checks (e.g. "GitGuardian / Any source").
+- [ ] `protect-main` requires 2 approvals; `protect-develop` requires 1 (confirm live).
 - [ ] Signing key present on account as type **Signing**; deploy key present on repo.
 - [ ] CI workflow token permission is `contents: read`.
-- [ ] GitGuardian installation scope confirmed and recorded (§7).
+- [ ] GitGuardian installation scope confirmed and recorded (Section 7).
 - [ ] A test PR confirms checks gate merges with nothing stuck "pending".
 
 ---
@@ -230,3 +309,4 @@ Not blockers; logical follow-ons to the bootstrap foundation.
 |------|--------|--------|
 | 2026-06-05 | Cedric Kiama Wachira | Initial bootstrap record. |
 | 2026-06-05 | Cedric Kiama Wachira | Ruleset enforcement found disabled after repo set to private on personal Free plan; restored by reverting to public. Permanent remediation: migration to air-gapped GitHub Enterprise (scheduled). |
+| 2026-06-05 | Cedric Kiama Wachira | Record completed post-bootstrap: added PR #4 evidence, Section 10 incidents/detections (key-role collision, CI go.sum guard, stray binary, stray GitGuardian check, enforcement-disabled incident), and Section 11 air-gapped GHES migration tasks. |
