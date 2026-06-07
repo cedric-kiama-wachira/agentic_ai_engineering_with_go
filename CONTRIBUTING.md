@@ -40,10 +40,15 @@ independent review. Apply this discipline when reviewing one:
    show "Verified" and satisfy the signing rule. If a commit shows unsigned (a
    known intermittent Dependabot bug), do **not** weaken the signing rule. Remedy,
    in order:
-   - Comment `@dependabot recreate` (may regenerate a signed commit; not guaranteed).
-   - If that fails: check out the branch, re-apply the change as your own signed
-     commit (or interactive-rebase to re-sign), and force-push. The PR becomes
-     human-authored and signed — stronger attribution, not weaker.
+   - Try `@dependabot recreate` **once, on the still-open PR** — it may regenerate
+     a signed commit. It is not guaranteed, and it is fragile: on a closed PR or a
+     deleted branch it can fail and even reference `@dependabot reopen`, a command
+     GitHub removed on 2026-01-27.
+   - If that fails, **author the bump as a normal signed human PR** (re-apply the
+     change on a branch, commit it signed with your own key, open a PR). This is
+     the reliable path and yields stronger attribution — a human author, signed.
+   - For closing or reopening PRs, use GitHub's native UI/CLI: the `@dependabot
+     close` / `reopen` / `merge` commands were removed on 2026-01-27.
 
 3. **Merge with a merge commit, never rebase.** Rebase-merge rewrites the commit
    and strips the bot's signature, tripping the signing rule. Dependabot targets
@@ -52,4 +57,6 @@ independent review. Apply this discipline when reviewing one:
 4. **Review the change itself.** A grouped minor/patch PR still warrants reading
    the diff; a major-version or security bump warrants closer scrutiny. CI catches
    build, vulnerability, and lint regressions, but the dependency change is yours
-   to judge.
+   to judge. (Major **action** bumps are not proposed by Dependabot — they are
+   suppressed in `dependabot.yml` and handled as deliberate human PRs; major
+   **gomod** bumps, including security-tool majors, do surface for review.)
