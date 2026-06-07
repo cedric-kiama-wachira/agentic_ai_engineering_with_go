@@ -1,0 +1,38 @@
+# Dependabot configuration — Agentic AI Lab (Go)
+#
+# Governance: Dependabot opens PRs that flow through the SAME governed gate as
+# all changes — five required checks (build/vet/test incl. the pinned-Go guard,
+# govulncheck, gosec, staticcheck, secret scanning) + independent review.
+# No auto-merge. Every bump is reviewed and merged by a human.
+#
+# See CONTRIBUTING.md ("Reviewing Dependabot pull requests") for the required
+# review discipline: the pinned-Go check, the unsigned-commit remedy, and the
+# merge-method constraint.
+version: 2
+updates:
+  # ---- Go modules (tool-directive deps: govulncheck, gosec, staticcheck + trees) ----
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"          # Dependabot appends "(deps)" -> "chore(deps): ..."
+    groups:
+      # Batch low-risk minor/patch version updates into one PR to reduce review load.
+      # Major bumps stay ungrouped (individual PRs, higher scrutiny).
+      # Security updates are individual by default (no version-updates group matches them).
+      gomod-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # ---- GitHub Actions (keeps the SHA-pinned actions current; reads the # vX.Y.Z comments) ----
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
