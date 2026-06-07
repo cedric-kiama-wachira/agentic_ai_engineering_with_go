@@ -24,6 +24,9 @@ updates:
       # Security updates are individual by default (no version-updates group matches them).
       gomod-minor-patch:
         update-types: ["minor", "patch"]
+    # NOTE: gomod majors are deliberately NOT ignored. A major release of a
+    # security tool (govulncheck/gosec/staticcheck) can carry detection
+    # improvements; those must surface as individual PRs for deliberate review.
 
   # ---- GitHub Actions (keeps the SHA-pinned actions current; reads the # vX.Y.Z comments) ----
   - package-ecosystem: "github-actions"
@@ -36,3 +39,9 @@ updates:
     groups:
       actions-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Major action upgrades are deliberate, human-planned migrations (changelog
+      # review for breaking changes), not bot-driven. Dependabot stays in the
+      # minor/patch lane for actions; majors are handled by manual PR.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
