@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # Pinned, auditable toolchain: refuse to silently download/switch Go versions.
+  # The build fails loudly instead of fetching a different toolchain.
+  GOTOOLCHAIN: local
+
 jobs:
   build-and-test:
     name: build / vet / test
@@ -22,6 +27,20 @@ jobs:
         with:
           go-version: '1.26.1'
           cache: true
+
+      - name: Verify pinned Go toolchain
+        run: |
+          if grep -q '^toolchain ' go.mod; then
+            echo "::error::unexpected toolchain directive in go.mod — pinned Go must change only by deliberate human PR"
+            grep '^toolchain ' go.mod
+            exit 1
+          fi
+          if ! grep -q '^go 1\.26\.1$' go.mod; then
+            echo "::error::go directive in go.mod drifted from the pinned 1.26.1"
+            grep '^go ' go.mod
+            exit 1
+          fi
+          echo "Pinned Go invariant holds: go 1.26.1, no toolchain directive."
 
       - name: Verify modules are tidy
         run: |
