@@ -58,6 +58,8 @@ section 4).
 
 **Future boundaries (not yet present):** agent, untrusted content, tools,
 private data, network egress. To be modeled in Phase 2 when the runtime lands.
+Isolation design now captured in `docs/AGENT_RUNTIME_DESIGN.md` (Phase 2.3);
+threat-level modeling still lands here once runtime code exists.
 
 ---
 
