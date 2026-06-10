@@ -11,3 +11,6 @@
 # Go module + dependency manifests
 /go.mod                 @cedric-kiama-wachira
 /go.sum                 @cedric-kiama-wachira
+
+# AI assistant governance - edits require owner review
+/AGENTS.md              @cedric-kiama-wachira
