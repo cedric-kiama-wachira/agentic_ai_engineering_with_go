@@ -67,3 +67,9 @@ checks, clean secret scan. No exceptions.
 - Generate code that disables TLS verification, logs secrets, broadens file
   permissions, or executes dynamically constructed shell commands.
 - Claim tests pass, tools ran, or research was done when it was not.
+
+## Review expectation
+
+Every AI-assisted PR is reviewed by a human under the AI Assistance checklist
+in `.github/pull_request_template.md`: logic verified, no hallucinated APIs,
+no unvetted dependencies, no leaked context or secrets.
