@@ -133,9 +133,12 @@ jobs:
           # string, all occurrences) before diffing. Transitive pseudo-versions
           # come from go.mod and remain fully drift-detectable. Once a release
           # tag exists, the version becomes the stable tag and this is a no-op.
+          # Also drop metadata.tools[].hashes: `go tool` compiles the tool
+          # per-machine (no -trimpath), so the binary's self-hashes differ
+          # between environments. Tool vendor/name/version are kept.
           norm() {
             v=$(grep -oEm1 'agentic_ai_engineering_with_go@v0\.0\.0-[0-9]{14}-[0-9a-f]{12}' "$1" | sed 's/.*@//')
-            if [ -n "$v" ]; then sed "s|$v|MAIN-VERSION-NORMALIZED|g" "$1"; else cat "$1"; fi
+            if [ -n "$v" ]; then sed "s|$v|MAIN-VERSION-NORMALIZED|g" "$1"; else cat "$1"; fi | jq 'del(.metadata.tools[]?.hashes)'
           }
           if ! diff -u <(norm sbom/bom.json) <(norm /tmp/bom.ci.json); then
             echo "::error::sbom/bom.json is stale — it no longer matches the module graph. Regenerate and commit: go tool cyclonedx-gomod mod -json -noserial -notimestamp -licenses -output sbom/bom.json ."
