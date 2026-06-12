@@ -9,10 +9,14 @@ Never commit directly to `main` or `develop` — both are protected.
 | `feature/*`  | `develop` | `develop` (PR)     | New work                     |
 | `bugfix/*`   | `develop` | `develop` (PR)     | Non-urgent fixes             |
 | `hotfix/*`   | `main`    | `main` + `develop` | Urgent production fixes      |
+| `chore/*`    | `develop` | `develop` (PR)     | Repo plumbing: CI, tooling, templates, config |
+| `docs/*`     | `develop` | `develop` (PR)     | Documentation-only changes   |
 
 ### Branch naming
-`<type>/<ticket-id>-<short-kebab-description>`
-Examples: `feature/AAI-123-tool-calling-loop`, `bugfix/AAI-145-nil-agent-state`
+`<type>/<short-kebab-description>` — with a ticket ID after the type once a
+tracker is in use: `<type>/<ticket-id>-<short-kebab-description>`.
+Examples: `feature/agents-md`, `chore/pr-template-ai-checklist`,
+`feature/AAI-123-tool-calling-loop` (with tracker).
 
 ## Commits
 - Must be **signed** (the repo requires verified signatures).
