@@ -108,3 +108,40 @@ jobs:
 
       - name: Run staticcheck
         run: go tool staticcheck ./...
+
+  sbom-drift:
+    name: supply-chain / sbom-drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+
+      - name: Verify committed SBOM matches regenerated SBOM
+        run: |
+          # Regenerate with the EXACT invocation that produced sbom/bom.json.
+          go tool cyclonedx-gomod mod -json -noserial -notimestamp -licenses -output /tmp/bom.ci.json .
+          # The MAIN component's version is a git-HEAD-derived pseudo-version
+          # (v0.0.0-<ts>-<sha>) that changes with every commit — including the
+          # commit that adds the SBOM itself — so it can never match across
+          # commits. Normalize each file's OWN main pseudo-version (exact
+          # string, all occurrences) before diffing. Transitive pseudo-versions
+          # come from go.mod and remain fully drift-detectable. Once a release
+          # tag exists, the version becomes the stable tag and this is a no-op.
+          # Also drop metadata.tools[].hashes: `go tool` compiles the tool
+          # per-machine (no -trimpath), so the binary's self-hashes differ
+          # between environments. Tool vendor/name/version are kept.
+          norm() {
+            v=$(grep -oEm1 'agentic_ai_engineering_with_go@v0\.0\.0-[0-9]{14}-[0-9a-f]{12}' "$1" | sed 's/.*@//')
+            if [ -n "$v" ]; then sed "s|$v|MAIN-VERSION-NORMALIZED|g" "$1"; else cat "$1"; fi | jq 'del(.metadata.tools[]?.hashes)'
+          }
+          if ! diff -u <(norm sbom/bom.json) <(norm /tmp/bom.ci.json); then
+            echo "::error::sbom/bom.json is stale — it no longer matches the module graph. Regenerate and commit: go tool cyclonedx-gomod mod -json -noserial -notimestamp -licenses -output sbom/bom.json ."
+            exit 1
+          fi
+          echo "Committed SBOM is current (main-module pseudo-version normalized)."
