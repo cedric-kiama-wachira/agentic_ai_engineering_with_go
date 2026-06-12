@@ -3,9 +3,9 @@
 **Repository:** `cedric-kiama-wachira/agentic_ai_engineering_with_go`
 **Visibility:** Public · **License:** Apache-2.0
 **Branching model:** Git Flow
-**Record prepared:** 2026-06-05
+**Record prepared:** 2026-06-05 · **Last updated:** 2026-06-12
 **Prepared by:** Cedric Kiama Wachira (repository architect)
-**Status:** Bootstrap complete — pending migration to air-gapped GitHub Enterprise Server (GHES)
+**Status:** Bootstrap + OpenSSF Phases 0–2 complete — pending migration to air-gapped GitHub Enterprise Server (GHES)
 
 > **Auditor note.** This document records the controls configured during the
 > bootstrap phase, the evidence that each was verified on live artifacts, and
@@ -33,10 +33,12 @@ posture, suitable for audit review.
 | Default branch | `develop` |
 | Protected branches | `main`, `develop` |
 | Go module | `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
-| Go version | 1.26.1 (pinned in CI; stated in README prerequisites) |
+| Go version | 1.26.1 (pinned in CI with `GOTOOLCHAIN=local` + CI guard; stated in README prerequisites) |
 | Source layout | `cmd/agent/main.go`, `cmd/agent/main_test.go` |
-| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `docs/REPO_SETUP.md` |
-| CI | `.github/workflows/ci.yml` |
+| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `AGENTS.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `docs/REPO_SETUP.md`, `docs/THREAT_MODEL.md`, `docs/AGENT_RUNTIME_DESIGN.md` |
+| CI | `.github/workflows/ci.yml` — four jobs (Section 6) |
+| Security tooling | `govulncheck`, `gosec`, `staticcheck` via the Go `tool` directive (pinned in `go.sum`) |
+| Dependency updates | Dependabot — `gomod` + `github-actions`, weekly, governed PRs (Section 15.4) |
 | Secret scanning | GitGuardian (GitHub App) |
 
 ---
@@ -87,7 +89,9 @@ changes enter through reviewed pull requests.
 | `hotfix/*` | `main` | `main` + `develop` | Urgent production fixes |
 
 Branch naming (`<type>/<ticket-id>-<short-kebab-description>`) and Conventional
-Commits are documented in `CONTRIBUTING.md`.
+Commits are documented in `CONTRIBUTING.md`. A `chore/*` prefix was used on
+PR #22 for repo-plumbing work — recorded as a conscious deviation on that PR;
+the branch-naming table amendment lands via governed PR (see Section 16.5).
 
 ---
 
@@ -106,7 +110,7 @@ audit trails, and Evaluate mode) are active, each targeting one branch.
 | Require linear history | Enabled |
 | Require pull request before merging | Enabled — **2** approvals, dismiss stale approvals on new commits, require Code Owner review |
 | Require signed commits | Enabled |
-| Require status checks to pass | Enabled — `build / vet / test`, `GitGuardian Security Checks`; require branches up to date before merging |
+| Require status checks to pass | Enabled — `build / vet / test`, `security / govulncheck`, `security / gosec`, `quality / staticcheck`, `GitGuardian Security Checks`; require branches up to date before merging |
 | Bypass list | **Empty** |
 
 ### 5.2 `protect-develop` (targets `develop`)
@@ -118,7 +122,7 @@ audit trails, and Evaluate mode) are active, each targeting one branch.
 | Require linear history | **Disabled** (merge commits permitted on the integration branch) |
 | Require pull request before merging | Enabled — **1** approval, dismiss stale approvals on new commits |
 | Require signed commits | Enabled |
-| Require status checks to pass | Enabled — `build / vet / test`, `GitGuardian Security Checks`; require branches up to date before merging |
+| Require status checks to pass | Enabled — `build / vet / test`, `security / govulncheck`, `security / gosec`, `quality / staticcheck`, `GitGuardian Security Checks`; require branches up to date before merging |
 | Bypass list | **Empty** |
 
 **Design rationale:** `main` is held strictly (two-person review, linear
@@ -137,21 +141,33 @@ rule bypass — auditable rather than silent.
 
 ## 6. Continuous Integration
 
-**File:** `.github/workflows/ci.yml` — workflow `CI`, job `build / vet / test`.
+**File:** `.github/workflows/ci.yml` — workflow `CI`, four jobs (all required
+checks; Section 5).
 
 | Property | Value |
 |----------|-------|
 | Triggers | `pull_request` and `push` to `develop`, `main` |
 | Token permissions | `contents: read` (least privilege) |
 | Runner | `ubuntu-latest` (GitHub-hosted) |
-| Go version | `1.26.1` (pinned to match local toolchain) |
-| Steps | checkout@v4 → setup-go@v5 (cached) → verify modules tidy → `go build ./...` → `go vet ./...` → `go test -race -coverprofile=coverage.out ./...` |
+| Go version | `1.26.1` (pinned; workflow-level `GOTOOLCHAIN: local` on all jobs) |
+| Actions | SHA-pinned with `# vX.Y.Z` annotations (`actions/checkout`, `actions/setup-go`) — Section 15.2 |
 
-The module-tidiness step is written to tolerate the absence of `go.sum` (no
-external dependencies yet) and will automatically begin guarding `go.sum` once
-the first dependency is added (see Section 10, incident #2). The race detector is
-enabled because the agentic runtime is concurrency-heavy. This job is a
-**required** status check on both protected branches (Section 5).
+| Job (required check name) | Purpose |
+|---------------------------|---------|
+| `build / vet / test` | Modules tidy → toolchain guard → `go build` → `go vet` → `go test -race` |
+| `security / govulncheck` | Known-vulnerability scanning (reachability-scoped), `go tool govulncheck ./...` |
+| `security / gosec` | SAST; strict `#nosec` policy (rule ID + justification required) |
+| `quality / staticcheck` | Correctness gate; community-default `staticcheck.conf` at repo root |
+
+The module-tidiness step is written to tolerate the absence of `go.sum` (a
+bootstrap condition; `go.sum` now exists and is guarded — see Section 10,
+incident #2). The **"Verify pinned Go toolchain"** step asserts no `toolchain`
+directive exists in `go.mod` and the `go` directive is exactly `1.26.1`
+(Section 15.3). The race detector is enabled because the agentic runtime is
+concurrency-heavy. All four jobs are **required** status checks on both
+protected branches (Section 5). All security tooling is invoked via the Go
+`tool` directive — versions pinned in `go.sum`, no marketplace SAST actions —
+for air-gap portability.
 
 ---
 
@@ -175,10 +191,12 @@ Checks` is required.
 
 | Artifact | Function |
 |----------|----------|
-| `.github/CODEOWNERS` | Auto-requests owner review on matching paths; `.github/`, `go.mod`, `go.sum` guarded explicitly. Validated by GitHub ("CODEOWNERS file is valid"). |
-| `CONTRIBUTING.md` | Git Flow model, branch-naming convention, Conventional Commits, PR flow, required approvals. |
-| `.github/pull_request_template.md` | Auto-populated checklist on every PR (branch origin, signing, tests, no-secrets). Verified auto-filling on PRs #2 and #4. |
+| `.github/CODEOWNERS` | Auto-requests owner review on matching paths; `.github/`, `go.mod`, `go.sum`, `AGENTS.md` guarded explicitly. Validated by GitHub ("CODEOWNERS file is valid"). |
+| `CONTRIBUTING.md` | Git Flow model, branch-naming convention, Conventional Commits, PR flow, required approvals, secure-coding standard, Dependabot PR review procedure. |
+| `.github/pull_request_template.md` | Auto-populated checklist on every PR (branch origin, signing, tests, no-secrets, AI Assistance declaration + reviewer attestation). Verified auto-filling on PRs #2, #4, and #23 (post-AI-checklist). |
+| `AGENTS.md` | Instructions governing AI coding assistants contributing to the repo (OpenSSF-derived; Section 16.1). |
 | `README.md` | Project intro, prerequisites (Go 1.26.1), getting-started (canonical clone URL, not the local Host alias). |
+| `SECURITY.md` | Coordinated-disclosure policy + intake channels (Section 14.2). |
 | `LICENSE` | Apache-2.0 (explicit patent grant, suited to multi-contributor + corporate use). |
 
 ---
@@ -253,7 +271,7 @@ persist into team operation; all are resolved by the GHES migration.
 
 | # | Deviation | Why acceptable now | Remediation at GHES migration |
 |---|-----------|--------------------|-------------------------------|
-| 1 | **Second account (`digital-factory-dm`) used as approving reviewer** on PRs #1, #2, #4 | Exercised an authentic two-person-review event during bootstrap | **Not genuine separation of duties** — both accounts controlled by one person. Superseded by independent human reviewers via enterprise IdP and teams. (Also confirm work-identity usage complies with applicable identity policy.) |
+| 1 | **Second account (`digital-factory-dm`) used as approving reviewer** on PRs #1, #2, #4 and all subsequent governed PRs | Exercised an authentic two-person-review event during bootstrap | **Not genuine separation of duties** — both accounts controlled by one person. Superseded by independent human reviewers via enterprise IdP and teams. (Also confirm work-identity usage complies with applicable identity policy.) |
 | 2 | **Shared deploy key used for human push access** | Single operator during bootstrap | Deploy keys are repo-scoped and not person-attributable. Retire for human use; each developer authenticates with their own account auth + signing keys. Reserve deploy keys for CI/CD or server deploys. |
 | 3 | **Repository on a personal account and kept public** for ruleset enforcement | Only configuration under which Free-plan rulesets enforce | Migrate to **air-gapped GHES**: private + enforced is the default; no public exposure. |
 | 4 | **Interim email security contact (`theemail@mail.com`) in `SECURITY.md`** | Single operator during bootstrap; PVR is the preferred channel regardless | Replace with a monitored organizational security mailbox at the GHES migration (see Section 14.2). |
@@ -261,8 +279,8 @@ persist into team operation; all are resolved by the GHES migration.
 ### GHES (air-gapped) migration tasks — items that do not port unchanged
 
 1. **CI runners:** replace `runs-on: ubuntu-latest` with **self-hosted runners**
-   registered inside the perimeter. `actions/checkout@v4` and
-   `actions/setup-go@v5` are pulled from the public marketplace — resolve via
+   registered inside the perimeter. `actions/checkout` and
+   `actions/setup-go` are pulled from the public marketplace — resolve via
    **Actions sync** (mirrored into the instance) or vendored copies.
 2. **Secret scanning:** the cloud GitGuardian app cannot reach its SaaS in an
    air-gapped network. Replace with **GHES Advanced Security secret scanning +
@@ -274,21 +292,28 @@ persist into team operation; all are resolved by the GHES migration.
 4. **Vulnerability intake:** GitHub Private Vulnerability Reporting is a
    GitHub.com feature; on air-gapped GHES use the GHES security-advisory
    mechanism or the enterprise vulnerability-intake process (see Section 14.4).
+5. **Dependabot:** requires GitHub Connect or a self-hosted setup on GHES
+   (Section 15.4).
+6. **govulncheck vulnerability database:** air-gapped operation requires a
+   mirrored/local copy of the Go vuln DB on a defined refresh cadence. **A stale
+   DB yields a false-green gate** — the same false-confidence pattern as a
+   silently-disabled ruleset; treat DB freshness as a monitored control
+   (cross-ref `docs/THREAT_MODEL.md` §7).
 
 ---
 
 ## 12. Recommended Next-Phase Enhancements
 
-Not blockers; logical follow-ons to the bootstrap foundation.
+Status of the original backlog, updated as phases complete.
 
-- GHES migration (resolves all Section 11 deviations and the Section 5 enforcement caveat).
-- CodeQL code scanning (SAST) as an additional required check.
-- Dependabot for dependency and action updates.
-- Pin GitHub Action versions to commit SHAs (stricter supply-chain control).
-- Strict Code-Owner-specific approval enforced on `main`.
-- `release/*` branch flow with semantic version tagging.
-- Branch auto-deletion on merge.
-- `CODEOWNERS` entry for `/docs/` so future edits to this record require owner review.
+- GHES migration (resolves all Section 11 deviations and the Section 5 enforcement caveat). — **Open**
+- ~~CodeQL code scanning (SAST) as an additional required check.~~ — **Superseded:** SAST delivered via Go-native `gosec` + `staticcheck` (Phase 1, Section 15.1); CodeQL deliberately not adopted (marketplace/cloud dependency vs air-gap portability).
+- ~~Dependabot for dependency and action updates.~~ — **Done** (Phase 1, Section 15.4).
+- ~~Pin GitHub Action versions to commit SHAs.~~ — **Done** (Phase 1, Section 15.2).
+- Strict Code-Owner-specific approval enforced on `main`. — **Open**
+- `release/*` branch flow with semantic version tagging. — **Open** (Phase 3)
+- Branch auto-deletion on merge. — **Open** (manual deletion practiced consistently)
+- `CODEOWNERS` entry for `/docs/` so future edits to this record require owner review. — **Open**
 
 ---
 
@@ -296,15 +321,17 @@ Not blockers; logical follow-ons to the bootstrap foundation.
 
 - [ ] Both rulesets `protect-main` and `protect-develop` show **Active** (green) — not disabled.
 - [ ] Repository visibility supports enforcement (public on Free plan, or hosted on GHES/Team).
-- [ ] Bypass lists are empty on both rulesets.
-- [ ] Required status checks on both: `build / vet / test`, `GitGuardian Security Checks`.
-- [ ] No stray free-text required checks (e.g. "GitGuardian / Any source").
+- [ ] Bypass lists are empty on both rulesets (Dependabot NOT on either bypass list).
+- [ ] Required status checks on both: `build / vet / test`, `security / govulncheck`, `security / gosec`, `quality / staticcheck`, `GitGuardian Security Checks`.
+- [ ] No stray free-text required checks (e.g. "GitGuardian / Any source"); no check stuck "Expected — waiting".
 - [ ] `protect-main` requires 2 approvals; `protect-develop` requires 1 (confirm live).
 - [ ] Signing key present on account as type **Signing**; deploy key present on repo.
-- [ ] CI workflow token permission is `contents: read`.
+- [ ] CI workflow token permission is `contents: read`; all `uses:` lines SHA-pinned with `# vX.Y.Z` comments.
+- [ ] `go.mod` has NO `toolchain` directive; `go` directive is exactly `1.26.1`; workflow sets `GOTOOLCHAIN: local`.
 - [ ] GitGuardian installation scope confirmed and recorded (Section 7).
 - [ ] A test PR confirms checks gate merges with nothing stuck "pending".
 - [ ] `SECURITY.md` present at repo root; Private Vulnerability Reporting enabled (Section 14).
+- [ ] `AGENTS.md` present at root with CODEOWNERS guard; PR template carries the AI Assistance section (Section 16).
 
 ---
 
@@ -376,6 +403,175 @@ public infrastructure) that do not port unchanged to the air-gapped target.
 
 ---
 
+## 15. OpenSSF Hardening — Phase 1 (Secure-Development Gates & Supply Chain)
+
+> **Recording note (honesty).** Phase 1 completed on 2026-06-07 but this record
+> was not updated at the time — the omission was detected on 2026-06-12 during
+> the Phase 2 closeout and is corrected retroactively here. All evidence cited
+> (PRs, commits, Scorecard JSON) is contemporaneous and verifiable in the repo
+> history; only this narrative is late. Detection-and-correction logged in the
+> Change Log, consistent with the Section 10 process discipline.
+
+All Phase 1 controls landed via the governed PR flow and use the **Go `tool`
+directive** (tool versions pinned in `go.sum`) rather than marketplace actions —
+a deliberate air-gap-portability decision.
+
+### 15.1 Security & quality gates (PRs #8, #10, #12)
+
+| Gate (required check) | Tool & version | Invocation | Notes |
+|-----------------------|----------------|------------|-------|
+| `security / govulncheck` | govulncheck v1.3.0 | `go tool govulncheck ./...` | Reachability-scoped known-vuln scanning; separate named job for audit granularity. Clean at adoption. |
+| `security / gosec` | gosec v2.27.1 | `go tool gosec -nosec-require-rules -nosec-require-justification ./...` | Strict: every `#nosec` requires a rule ID + written justification. 0 issues at adoption. |
+| `quality / staticcheck` | staticcheck v0.7.0 (2026.1) | `go tool staticcheck ./...` | Community-default `staticcheck.conf` at repo root (all SA/S/U checks; 6 subjective ST style checks excluded). Named `quality /` — it is a correctness gate, not a security gate. |
+
+Each check was landed via PR, allowed to report green once, then added to
+**both** rulesets via dropdown autocomplete (never free-typed — the incident #4
+lesson), then proven to gate via a throwaway PR closed unmerged (PRs #9, #11,
+#13).
+
+### 15.2 Actions SHA-pinning (PR #14)
+
+All 8 `uses:` lines across the 4 CI jobs pinned to full commit SHAs with
+`# vX.Y.Z` annotations (e.g. `actions/checkout@34e11487… # v4.3.1`,
+`actions/setup-go@40f1582b… # v5.6.0`). SHAs fetched authoritatively via
+`git ls-remote` (lightweight tags → the bare ref IS the commit SHA; annotated
+tags require the peeled `^{}` SHA). Closes the repointable-moving-tag
+supply-chain hole. Scorecard Pinned-Dependencies → 10/10.
+
+### 15.3 Pinned-Go toolchain guard (PR #15)
+
+Workflow-level `env: GOTOOLCHAIN: local` on all 4 jobs, plus a named
+`build / vet / test` step **"Verify pinned Go toolchain"** asserting (a) no
+`^toolchain ` line exists in `go.mod`, and (b) the `go` directive is exactly
+`go 1.26.1`. Rationale: a dependency bump can inject a `toolchain` line or bump
+the `go` directive as collateral; `go mod tidy` alone is insufficient. A
+Dependabot `ignore` rule for go/toolchain was evaluated and **rejected as
+unverifiable**; the CI guard is the verified control. **Verified both ways on a
+live artifact:** deliberate injection of `toolchain go1.27.0` → CI red at the
+guard; reverted → green.
+
+### 15.4 Dependabot, governed (PRs #16, #19; live-bot verification on #17/#18)
+
+- `.github/dependabot.yml`: ecosystems `gomod` + `github-actions`, weekly,
+  `chore` prefix, minor/patch grouped per ecosystem, open-PR limit 5, **no
+  auto-merge**, merge-commit only.
+- **No ruleset bypass:** Dependabot PRs face the identical gate — five required
+  checks + independent review (bypass lists verified empty).
+- `version-update:semver-major` ignore applied to **github-actions only**
+  (PR #19); **gomod majors deliberately still surface** (a security-tool major
+  can carry detection improvements).
+- Verified end-to-end on live bot PR #18: Verified commit signature, `chore:`
+  prefix, 5/5 checks green, diff preserved the SHA + `# vX.Y.Z` pin convention.
+  Both major-bump PRs (#17, #18) closed with documented defer reasons.
+- Unsigned-bot-commit recovery procedure documented in `CONTRIBUTING.md`
+  (recreate once on the open PR, else author a signed human PR; the signing
+  rule is never weakened), reconciled with GitHub's 2026-01-27 removal of
+  Dependabot comment commands.
+
+### 15.5 Threat model (PR #20)
+
+`docs/THREAT_MODEL.md` v1.0 — Phase-1 **lightweight**, deliberately scoped to
+what exists (governed repo + CI/CD supply chain); the agent-runtime model is
+deferred until runtime code exists, with STRIDE/DFD rigor landing in the
+Phase 4 self-assessment. Records: trust boundaries (Dependabot as a second
+author under the identical boundary), AI-SDK transitive dependencies verified
+inert via `go mod why`, the toolchain-guard rationale, Dependabot privilege
+posture, honest verification-coverage gaps (no DAST, no fuzzing), and GHES
+migration deltas including the stale-vuln-DB false-green failure mode.
+
+### 15.6 Phase 1 checkpoint — Scorecard 5.6 → 7.1
+
+Movers: **Pinned-Dependencies → 10/10**, **Dependency-Update-Tool → 10/10**,
+CI-Tests 9/10. Non-movers explained and documented:
+
+- **SAST 0/10 is a Scorecard detection blind spot, not a control gap** —
+  Scorecard pattern-matches marketplace SAST actions/CodeQL and cannot see
+  `go tool gosec` / `go tool staticcheck` invocations. The gates are real and
+  required; the metric is not chased at the cost of air-gap portability.
+- Branch-Protection 5/10 (deliberate develop-relaxed design, Section 14.1);
+  Maintained 0/10 (repo age); Contributors/CII/Fuzzing 0 (single-operator /
+  future); Packaging & Signed-Releases `?` (no releases yet — Phase 3).
+
+---
+
+## 16. OpenSSF Hardening — Phase 2 (AI Guardrails, LFEL1012)
+
+Phase 2 executed 2026-06-10/12 via three governed PRs (one artifact per PR,
+ratified at session start), plus the interim checkpoint. Decisions ratified:
+**(1)** lethal-trifecta isolation lands as a design document only — no
+enforcement scaffolding until runtime code exists; **(2)** one artifact per PR.
+
+### 16.1 `AGENTS.md` — AI assistant instructions (PR #21, merge `e469e35`)
+
+Tool-agnostic instruction file at repo root, derived from the OpenSSF
+*Security-Focused Guide for AI Code Assistant Instructions*: never commit
+secrets; validate input at boundaries (allowlists); tests required for new
+code paths; no unjustified dependencies; flag uncertainty rather than
+fabricate; error-handling discipline; repo-specific constraints (pinned
+toolchain, `tool` directive over marketplace actions, auditable suppressions);
+explicit prohibited-actions list. Same PR added an explicit `/AGENTS.md`
+CODEOWNERS entry — declarative (the `*` rule already covers it), marking the
+path governance-sensitive, same treatment as `/go.mod`. A "Review expectation"
+section was deliberately stripped because the checklist it references did not
+yet exist (restored in PR #22 — no merged doc carries a dangling reference).
+
+### 16.2 PR-template AI Assistance checklist (PR #22, merge `2e0ab0f`)
+
+`.github/pull_request_template.md` gains an **AI Assistance** section: every PR
+makes an explicit AI-assisted-or-not declaration (the section cannot be
+silently skipped), and AI-assisted changes carry four **reviewer**
+attestations — logic verified, no hallucinated APIs, no unvetted dependencies,
+no leaked context/secrets. Same PR restored the `AGENTS.md` "Review
+expectation" cross-reference. Source branch used a `chore/*` prefix — recorded
+as a conscious deviation in a PR #22 comment (see 16.5).
+
+### 16.3 Agent runtime isolation design (PR #23, merge `002d02e`)
+
+`docs/AGENT_RUNTIME_DESIGN.md` v1.0 — the lethal-trifecta isolation design for
+the future runtime: break-one-leg principle; separated untrusted-content
+handlers / private-data accessors / single default-deny egress gateway;
+per-tool scoped credentials; no standing secrets; secrets never in model
+context; sandboxing requirements. **Status DESIGN** — each principle carries an
+*Implementation gate* stating when it converts to an enforced, verified
+control; the document explicitly disclaims being enforced today (treating
+design as control before code exists would manufacture false confidence).
+Two-line back-link added to `docs/THREAT_MODEL.md` §2, preserving that
+section's promise that threat-level modeling still lands there once runtime
+code exists.
+
+### 16.4 Verification on live artifacts
+
+- **PR #23 was the first PR opened against the new template** — the AI
+  Assistance section rendered, the author declared AI-assisted, and the
+  reviewing account ticked the four reviewer attestations before approving:
+  the checklist mechanism exercised end-to-end on first use. (Caveat recorded:
+  the attestation was made by the second account — the standing
+  separation-of-duties deviation, Section 11 #1; the *mechanism* is what is
+  verified here, genuine independent attestation arrives with real reviewers
+  at GHES.)
+- Template-renders-from-base-branch behavior confirmed: PR #22 itself rendered
+  the old template; #23 the new one — expected GitHub behavior, documented so
+  the sequencing reads correctly in the audit trail.
+
+### 16.5 Phase 2 checkpoint — Scorecard 7.1 → 7.2 — and follow-ups
+
+Interim Scorecard (same pinned v5.4.0 instrument; evidence
+`docs/scorecard-phase2-interim.json`): **7.2 / 10**. Single mover:
+**CI-Tests 9 → 10/10** ("15 out of 15 merged PRs checked") — the Phase 2 PRs
+all carried green checks. No other movement, as predicted: Phase 2 artifacts
+are documentation/template controls, which Scorecard does not score. Trend:
+**5.0 → 5.6 → 7.1 → 7.2**. The formal re-measure remains Phase 4.
+
+Open follow-ups from Phase 2: **(a)** amend the `CONTRIBUTING.md` branch-naming
+table to include `chore/*` (deviation recorded on PR #22; lands as closeout
+PR 2); **(b)** Phase 3 (artifact integrity) carries a flagged design gap —
+cosign keyless + slsa-github-generator depend on public Fulcio/Rekor/OIDC
+infrastructure, incompatible with air-gapped GHES; Phase 3 requires a
+materially different design for the target environment, and cosign ≥ 2.6.2
+(CVE-2026-22703) when adopted.
+
+---
+
 ## Change Log
 
 | Date | Author | Change |
@@ -384,3 +580,5 @@ public infrastructure) that do not port unchanged to the air-gapped target.
 | 2026-06-05 | Cedric Kiama Wachira | Ruleset enforcement found disabled after repo set to private on personal Free plan; restored by reverting to public. Permanent remediation: migration to air-gapped GitHub Enterprise (scheduled). |
 | 2026-06-05 | Cedric Kiama Wachira | Record completed post-bootstrap: added PR #4 evidence, Section 10 incidents/detections (key-role collision, CI go.sum guard, stray binary, stray GitGuardian check, enforcement-disabled incident), and Section 11 air-gapped GHES migration tasks. |
 | 2026-06-06 | Cedric Kiama Wachira | OpenSSF Hardening Phase 0: established Scorecard v5.4.0 baseline (5.0 to 5.6); added coordinated-disclosure `SECURITY.md` (Security-Policy 0 to 10, PR #6) and enabled GitHub Private Vulnerability Reporting; committed scan evidence `docs/scorecard-phase0.json`. Added Section 14 and interim deviation #4 (interim email security contact pending an organizational security mailbox at GHES migration). |
+| 2026-06-12 | Cedric Kiama Wachira | **Retroactive Phase 1 record (Section 15)** — Phase 1 completed 2026-06-07 (PRs #8–#20: govulncheck/gosec/staticcheck required gates via Go `tool` directive, Actions SHA-pinning, pinned-toolchain CI guard, governed Dependabot, lightweight threat model; Scorecard 5.6→7.1) but this record was not updated at the time. Omission detected during Phase 2 closeout; corrected with stale-section fixes (Sections 2, 5, 6, 8, 11, 12, 13 updated to reflect the five required checks, four CI jobs, SHA-pinned actions, and completed backlog items). |
+| 2026-06-12 | Cedric Kiama Wachira | OpenSSF Hardening Phase 2 (AI guardrails, LFEL1012) complete via PRs #21–#23: `AGENTS.md` + CODEOWNERS guard; PR-template AI Assistance checklist with reviewer attestation (enforcement-visibility proven on PR #23 first render); `docs/AGENT_RUNTIME_DESIGN.md` lethal-trifecta design (design-only by ratified decision, THREAT_MODEL.md §2 back-link). Interim Scorecard 7.1→7.2 (CI-Tests 9→10); evidence `docs/scorecard-phase2-interim.json`. Added Section 16. `chore/*` branch-prefix deviation recorded on PR #22; CONTRIBUTING amendment follows in closeout PR 2. |
