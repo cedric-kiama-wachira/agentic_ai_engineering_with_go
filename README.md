@@ -6,7 +6,7 @@ Production-grade agentic AI systems, built in Go.
 
 ## Prerequisites
 
-- Go 1.26.1
+- Go 1.26.4
 - Git with SSH access to this repository
 
 ## Getting Started

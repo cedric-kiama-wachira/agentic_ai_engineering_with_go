@@ -91,9 +91,9 @@ actually calls an AI provider.
 **Pinned-Go toolchain integrity.** A dependency bump (via `go get` or Dependabot)
 can introduce a `toolchain` directive or raise the `go` directive in `go.mod`
 as a *side-effect* of bumping another dependency. This would silently drift the
-deliberately pinned Go version (1.26.1). **Control:** a CI guard ("Verify pinned
+deliberately pinned Go version (1.26.4). **Control:** a CI guard ("Verify pinned
 Go toolchain") asserts no `toolchain` directive exists and the `go` directive is
-exactly `1.26.1`, plus workflow-level `GOTOOLCHAIN=local` so the build refuses to
+exactly `1.26.4`, plus workflow-level `GOTOOLCHAIN=local` so the build refuses to
 silently switch toolchains. Verified on a live artifact (deliberate injection ->
 CI red at the guard; reverted -> green).
 

@@ -33,7 +33,7 @@ posture, suitable for audit review.
 | Default branch | `develop` |
 | Protected branches | `main`, `develop` |
 | Go module | `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
-| Go version | 1.26.1 (pinned in CI with `GOTOOLCHAIN=local` + CI guard; stated in README prerequisites) |
+| Go version | 1.26.4 (pinned in CI with `GOTOOLCHAIN=local` + CI guard; stated in README prerequisites) |
 | Source layout | `cmd/agent/main.go`, `cmd/agent/main_test.go` |
 | Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `AGENTS.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `docs/REPO_SETUP.md`, `docs/THREAT_MODEL.md`, `docs/AGENT_RUNTIME_DESIGN.md` |
 | CI | `.github/workflows/ci.yml` — four jobs (Section 6) |
@@ -149,7 +149,7 @@ checks; Section 5).
 | Triggers | `pull_request` and `push` to `develop`, `main` |
 | Token permissions | `contents: read` (least privilege) |
 | Runner | `ubuntu-latest` (GitHub-hosted) |
-| Go version | `1.26.1` (pinned; workflow-level `GOTOOLCHAIN: local` on all jobs) |
+| Go version | `1.26.4` (pinned; workflow-level `GOTOOLCHAIN: local` on all jobs) |
 | Actions | SHA-pinned with `# vX.Y.Z` annotations (`actions/checkout`, `actions/setup-go`) — Section 15.2 |
 
 | Job (required check name) | Purpose |
@@ -162,7 +162,7 @@ checks; Section 5).
 The module-tidiness step is written to tolerate the absence of `go.sum` (a
 bootstrap condition; `go.sum` now exists and is guarded — see Section 10,
 incident #2). The **"Verify pinned Go toolchain"** step asserts no `toolchain`
-directive exists in `go.mod` and the `go` directive is exactly `1.26.1`
+directive exists in `go.mod` and the `go` directive is exactly `1.26.4`
 (Section 15.3). The race detector is enabled because the agentic runtime is
 concurrency-heavy. All four jobs are **required** status checks on both
 protected branches (Section 5). All security tooling is invoked via the Go
@@ -195,7 +195,7 @@ Checks` is required.
 | `CONTRIBUTING.md` | Git Flow model, branch-naming convention, Conventional Commits, PR flow, required approvals, secure-coding standard, Dependabot PR review procedure. |
 | `.github/pull_request_template.md` | Auto-populated checklist on every PR (branch origin, signing, tests, no-secrets, AI Assistance declaration + reviewer attestation). Verified auto-filling on PRs #2, #4, and #23 (post-AI-checklist). |
 | `AGENTS.md` | Instructions governing AI coding assistants contributing to the repo (OpenSSF-derived; Section 16.1). |
-| `README.md` | Project intro, prerequisites (Go 1.26.1), getting-started (canonical clone URL, not the local Host alias). |
+| `README.md` | Project intro, prerequisites (Go 1.26.4), getting-started (canonical clone URL, not the local Host alias). |
 | `SECURITY.md` | Coordinated-disclosure policy + intake channels (Section 14.2). |
 | `LICENSE` | Apache-2.0 (explicit patent grant, suited to multi-contributor + corporate use). |
 
@@ -314,6 +314,7 @@ Status of the original backlog, updated as phases complete.
 - `release/*` branch flow with semantic version tagging. — **Open** (Phase 3)
 - Branch auto-deletion on merge. — **Open** (manual deletion practiced consistently)
 - `CODEOWNERS` entry for `/docs/` so future edits to this record require owner review. — **Open**
+- Scheduled toolchain-freshness watcher (e.g. scheduled govulncheck run): the CI guard prevents drift but does not detect staleness — gap detected 2026-06-12 when 18 stdlib advisories against go1.26.1 surfaced incidentally. — **Open**
 
 ---
 
@@ -327,7 +328,7 @@ Status of the original backlog, updated as phases complete.
 - [ ] `protect-main` requires 2 approvals; `protect-develop` requires 1 (confirm live).
 - [ ] Signing key present on account as type **Signing**; deploy key present on repo.
 - [ ] CI workflow token permission is `contents: read`; all `uses:` lines SHA-pinned with `# vX.Y.Z` comments.
-- [ ] `go.mod` has NO `toolchain` directive; `go` directive is exactly `1.26.1`; workflow sets `GOTOOLCHAIN: local`.
+- [ ] `go.mod` has NO `toolchain` directive; `go` directive is exactly `1.26.4`; workflow sets `GOTOOLCHAIN: local`.
 - [ ] GitGuardian installation scope confirmed and recorded (Section 7).
 - [ ] A test PR confirms checks gate merges with nothing stuck "pending".
 - [ ] `SECURITY.md` present at repo root; Private Vulnerability Reporting enabled (Section 14).
@@ -582,3 +583,4 @@ materially different design for the target environment, and cosign ≥ 2.6.2
 | 2026-06-06 | Cedric Kiama Wachira | OpenSSF Hardening Phase 0: established Scorecard v5.4.0 baseline (5.0 to 5.6); added coordinated-disclosure `SECURITY.md` (Security-Policy 0 to 10, PR #6) and enabled GitHub Private Vulnerability Reporting; committed scan evidence `docs/scorecard-phase0.json`. Added Section 14 and interim deviation #4 (interim email security contact pending an organizational security mailbox at GHES migration). |
 | 2026-06-12 | Cedric Kiama Wachira | **Retroactive Phase 1 record (Section 15)** — Phase 1 completed 2026-06-07 (PRs #8–#20: govulncheck/gosec/staticcheck required gates via Go `tool` directive, Actions SHA-pinning, pinned-toolchain CI guard, governed Dependabot, lightweight threat model; Scorecard 5.6→7.1) but this record was not updated at the time. Omission detected during Phase 2 closeout; corrected with stale-section fixes (Sections 2, 5, 6, 8, 11, 12, 13 updated to reflect the five required checks, four CI jobs, SHA-pinned actions, and completed backlog items). |
 | 2026-06-12 | Cedric Kiama Wachira | OpenSSF Hardening Phase 2 (AI guardrails, LFEL1012) complete via PRs #21–#23: `AGENTS.md` + CODEOWNERS guard; PR-template AI Assistance checklist with reviewer attestation (enforcement-visibility proven on PR #23 first render); `docs/AGENT_RUNTIME_DESIGN.md` lethal-trifecta design (design-only by ratified decision, THREAT_MODEL.md §2 back-link). Interim Scorecard 7.1→7.2 (CI-Tests 9→10); evidence `docs/scorecard-phase2-interim.json`. Added Section 16. `chore/*` branch-prefix deviation recorded on PR #22; CONTRIBUTING amendment follows in closeout PR 2. |
+| 2026-06-12 | Cedric Kiama Wachira | Toolchain patch bump go 1.26.1 → 1.26.4: 18 Go stdlib advisories (all `stdlib@go1.26.1`, 0 reachable per symbol-level govulncheck) surfaced incidentally during Phase 3 SBOM-tool verification (PR #26). Bumped `go.mod` directive, CI guard assertion, and `setup-go` pins in lockstep; local toolchain upgraded first (tarball SHA-256 verified against go.dev release metadata). Doc sweep: README, AGENTS.md, Sections 2/6/8/13, THREAT_MODEL.md. Section 15.3 left as contemporaneous history. Known gap recorded in Section 12: no scheduled toolchain-freshness watcher. |
