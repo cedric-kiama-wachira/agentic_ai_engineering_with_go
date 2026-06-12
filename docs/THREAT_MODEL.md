@@ -105,13 +105,24 @@ keeps the pins current via governed PRs (see section 4).
 >= 2.6.2** from the outset (CVE-2026-22703). Not a current risk - no cosign is
 present yet - but captured now so the Phase 3 work inherits the decision.
 
+**SBOM status (Phase 3, 2026-06-12).** A module SBOM (`sbom/bom.json`,
+CycloneDX 1.6) is committed in-repo and kept fresh by the required
+`supply-chain / sbom-drift` CI gate (regenerate-and-diff — the SBOM's
+consumer). Integrity framing, stated precisely: the signed-commit chain
+provides **file provenance**; the drift gate provides **content freshness**;
+**authenticity attestation does not yet exist** — SBOM signing is deferred to
+the GHES signing-architecture decision (key-based cosign >= 2.6.2 vs private
+Sigstore). Until then the SBOM is an informational artifact, not a trusted
+attestation. The module SBOM does not pre-satisfy release provenance; a
+release workstream requires a build-resolved `app`/`bin` SBOM.
+
 ---
 
 ## 4. Dependabot privilege & branch posture
 
 - **No ruleset bypass.** Dependabot is **not** on the bypass list of either
   `protect-develop` or `protect-main` (both verified empty). Its PRs are gated
-  **identically to human PRs** - five required checks plus independent review.
+  **identically to human PRs** - six required checks plus independent review.
   The "confused-deputy with bypass" path (a privileged bot merging unreviewed
   code) does not exist here, by design.
 - **Dependabot branch posture.** Dependabot's own branches (`dependabot/*`) are
