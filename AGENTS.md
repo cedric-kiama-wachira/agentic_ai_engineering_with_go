@@ -43,7 +43,7 @@ checks, clean secret scan. No exceptions.
 ## Repository-specific constraints
 
 - **Go toolchain is pinned.** The `go` directive in `go.mod` is exactly
-  `go 1.26.1`. Never add a `toolchain` directive and never bump the `go`
+  `go 1.26.4`. Never add a `toolchain` directive and never bump the `go`
   directive — CI enforces both and the build will fail.
 - **Security tooling runs via the Go `tool` directive**, not marketplace
   actions (air-gap portability). Do not add marketplace actions; if one is
