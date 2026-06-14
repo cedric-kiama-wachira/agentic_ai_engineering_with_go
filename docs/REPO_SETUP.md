@@ -3,9 +3,9 @@
 **Repository:** `cedric-kiama-wachira/agentic_ai_engineering_with_go`
 **Visibility:** Public · **License:** Apache-2.0
 **Branching model:** Git Flow
-**Record prepared:** 2026-06-05 · **Last updated:** 2026-06-12
+**Record prepared:** 2026-06-05 · **Last updated:** 2026-06-14
 **Prepared by:** Cedric Kiama Wachira (repository architect)
-**Status:** Bootstrap + OpenSSF Phases 0–2 complete — pending migration to air-gapped GitHub Enterprise Server (GHES)
+**Status:** Bootstrap + OpenSSF Phases 0–3 complete; Phase 4 in progress (deliverables (a), (c) landed) — pending migration to air-gapped GitHub Enterprise Server (GHES)
 
 > **Auditor note.** This document records the controls configured during the
 > bootstrap phase, the evidence that each was verified on live artifacts, and
@@ -35,7 +35,7 @@ posture, suitable for audit review.
 | Go module | `github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go` |
 | Go version | 1.26.4 (pinned in CI with `GOTOOLCHAIN=local` + CI guard; stated in README prerequisites) |
 | Source layout | `cmd/agent/main.go`, `cmd/agent/main_test.go` |
-| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `AGENTS.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `docs/REPO_SETUP.md`, `docs/THREAT_MODEL.md`, `docs/AGENT_RUNTIME_DESIGN.md` |
+| Governance files | `README.md`, `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`, `AGENTS.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `docs/REPO_SETUP.md`, `docs/THREAT_MODEL.md`, `docs/AGENT_RUNTIME_DESIGN.md`, `docs/TOOLCHAIN_FRESHNESS.md`, `.github/security-insights.yml` |
 | CI | `.github/workflows/ci.yml` — four jobs (Section 6) |
 | Security tooling | `govulncheck`, `gosec`, `staticcheck` via the Go `tool` directive (pinned in `go.sum`) |
 | Dependency updates | Dependabot — `gomod` + `github-actions`, weekly, governed PRs (Section 15.4) |
@@ -314,7 +314,8 @@ Status of the original backlog, updated as phases complete.
 - `release/*` branch flow with semantic version tagging. — **Open** (Phase 3)
 - Branch auto-deletion on merge. — **Open** (manual deletion practiced consistently)
 - `CODEOWNERS` entry for `/docs/` so future edits to this record require owner review. — **Open**
-- Scheduled toolchain-freshness watcher (e.g. scheduled govulncheck run): the CI guard prevents drift but does not detect staleness — gap detected 2026-06-12 when 18 stdlib advisories against go1.26.1 surfaced incidentally. — **Open**
+- Scheduled toolchain-freshness watcher (e.g. scheduled govulncheck run): the CI guard prevents drift but does not detect staleness — gap detected 2026-06-12 when 18 stdlib advisories against go1.26.1 surfaced incidentally. — **Addressed (Phase 4 (c))** via a human-executed compensating control, `docs/TOOLCHAIN_FRESHNESS.md` (Section 18.1); full scheduled-CI conversion deferred to GHES (age becomes primary on the mirror).
+- Enforced `si-validate` CI gate for `.github/security-insights.yml` (`cue` in the repo `tool` directive + vendored schema). — **Deferred** (Section 18.4): lands with the SBOM-style enforcement plumbing or at GHES migration, whichever first; until then validation is the local cue-vet recipe (Section 18.3).
 
 ---
 
@@ -333,6 +334,7 @@ Status of the original backlog, updated as phases complete.
 - [ ] A test PR confirms checks gate merges with nothing stuck "pending".
 - [ ] `SECURITY.md` present at repo root; Private Vulnerability Reporting enabled (Section 14).
 - [ ] `AGENTS.md` present at root with CODEOWNERS guard; PR template carries the AI Assistance section (Section 16).
+- [ ] `.github/security-insights.yml` present and validates against SI schema v2.2.0 via the local cue-vet recipe (Section 18.3).
 
 ---
 
@@ -685,6 +687,164 @@ merely choreographed.)
 
 ---
 
+## 18. OpenSSF Hardening — Phase 4 (Security Insights & Self-Assessment) — IN PROGRESS
+
+> **Status (mid-phase).** Phase 4 is **in progress**. Deliverables **(c)**
+> toolchain-freshness runbook and **(a)** Security Insights file are COMPLETE and
+> landed via governed PRs; **(b)** prose self-assessment and **(d)** formal
+> Scorecard re-measure are PENDING. This section is written in-phase as each
+> deliverable lands — per the in-phase audit rule (the Phase 1 omission, Section 15
+> recording note, is the precedent not to repeat); (b) and (d) are appended here on
+> completion. **Scorecard is NOT re-measured until (d)** — the trend
+> (5.0 → 5.6 → 7.1 → 7.2 → 7.2, pinned v5.4.0) is unchanged by this phase so far.
+
+Phase 4 delivers the project's machine- and human-readable security-posture
+documentation: an OpenSSF Security Insights file, a prose self-assessment, the
+operational toolchain-freshness procedure, and a formal Scorecard re-measure.
+
+### 18.1 Deliverable (c) — Toolchain-freshness runbook (PR #36, merge `32ebd12`)
+
+`docs/TOOLCHAIN_FRESHNESS.md` — **STATUS: ACTIVE OPERATOR PROCEDURE —
+COMPENSATING CONTROL, HUMAN-EXECUTED** (not CI-enforced; converts to a scheduled
+gate at GHES). Closes the **staleness** gap the Phase 1 pinned-toolchain guard
+does not cover: the guard prevents *drift* (an unexpected `toolchain` line or a
+changed `go` directive), not *staleness* (a pinned-but-aged toolchain behind
+published security patches) — the exact condition that surfaced incidentally as
+18 stdlib advisories in Phase 3 (Section 17.2). Addresses the Section 12
+"scheduled toolchain-freshness watcher" backlog item.
+
+Design (every gate cell verified on live `govulncheck` v1.3.0 runs 2026-06-14,
+clean and forced-failure):
+- Weekly run cadence (independent of the Go vuln DB's irregular curated update
+  cadence).
+- **Reachability gate keys on `config`-frame presence, not exit code** —
+  `jq -rs '.[0].config'`: object = DB reached; `null`/error = no usable config
+  frame → INCONCLUSIVE, gate fires.
+- **Reachable-vuln signal = `finding`-frame count**, NOT `osv` frames (osv frames
+  stream on every run — they mean "exists in DB," not "your code reaches it" —
+  counting them would false-positive every run).
+- Exit code is overloaded (vulns found OR DB unreachable; json-mode semantics
+  differ) and is therefore NOT in the gate logic — captured for diagnosis only via
+  de-pipelined `GV_EXIT=$?`.
+- Toolchain assertion: config `go_version` must equal the `go.mod` directive
+  (`go1.26.4`).
+- **30-day DB-age bound, PROVISIONAL** — the Go vuln DB is curated with no
+  published cadence (a 12-day-old DB is benign), so age is advisory on the
+  canonical online source, never a gate. Calibration TODO open (calibrate against
+  the observed `db_last_modified` series in `docs/freshness-runlog.md`).
+- **GHES conversion:** at the air-gapped mirror, **age flips from advisory to
+  PRIMARY** — the stale-but-valid-mirror false-green (frame present, old
+  `db_last_modified`, exit 0) is invisible to frame-presence. Full conversion
+  (scheduled CI on a self-hosted runner, `-db` → mirror, mirror-sync monitor) is
+  recorded in the Section 11 GHES backlog, not duplicated in the runbook.
+- **Observation run-log:** weekly observations append to a SEPARATE tracked file
+  `docs/freshness-runlog.md` (signed/dated evidence the check ran — the teeth of a
+  human-executed control). Created on FIRST WEEKLY USE, not by PR #36; the
+  one-PR-per-week vs periodic-batch cadence is deferred to that file's own header.
+
+### 18.2 Deliverable (a) — OpenSSF Security Insights file (PR #37, merge `fe269a2`)
+
+`.github/security-insights.yml` — machine-readable, single-repository security
+posture conforming to the **OpenSSF Security Insights schema v2.2.0**, for
+ingestion by consumers such as Scorecard / CLOMonitor / LFX Insights.
+
+**Filename correction.** The hardening plan
+(`OPENSSF_FOUNDATION_HARDENING_PLAN.md` §7) and the rev-1 Phase 4 handoff named
+this `SECURITY-INSIGHTS.yml` (uppercase); both are **stale**. The spec's filename
+is lowercase `security-insights.yml`.
+
+**Verification — every decision grounded in a live artifact, not memory:**
+- **Schema v2.2.0 confirmed current** via the `ossf/security-insights` **tagged
+  release** (not `main`; not the `ossf/security-insights-spec` draft repo). The
+  authoritative `spec/schema.cue` is self-contained (only the stdlib `time`
+  import — no cross-repo CUE imports).
+- **Placement `.github/`** per the spec's own detection guidance (consumers probe
+  repo root *or* the source-forge dir, e.g. `.github/`); `docs/` ruled OUT as a
+  non-detected location despite house style. Matches ossf's own published file.
+- **Scope: single-repository** (`header` + `repository`); the optional `project`
+  section omitted by design (one-repo project).
+- **`repository.security.tools` inventory — each field read from source:**
+
+| Tool | `type` | `integration` (adhoc/ci/release) | `rulesets` source |
+|------|--------|----------------------------------|-------------------|
+| govulncheck | `SCA` | true / true / false | `["default"]`; `adhoc:true` = the weekly hand-run in `docs/TOOLCHAIN_FRESHNESS.md` |
+| gosec | `SAST` | false / true / false | `["default"]` (default ruleset; CI `-nosec-*` flags govern `#nosec` handling only, not rule selection) |
+| staticcheck | `other` | false / true / false | verbatim mirror of the `staticcheck.conf` `checks` directive |
+| GitGuardian | `secret` | false / true / false | `["default"]` (schema no-customization value; App config not verifiable from repo) |
+| cyclonedx-gomod | `other` | false / true / false | `["default"]` (SBOM generator, not a finding scanner) |
+
+  `build / vet / test` is **deliberately excluded** from `tools` — it is a
+  build/test gate, not a finding-producing scanner. `staticcheck` and
+  `cyclonedx-gomod` are typed `other` (the honest enum members — there is no SBOM
+  type, and labelling a correctness linter `SAST` would overstate a security
+  control in a public file). Triggers read from `.github/workflows/ci.yml` (no
+  `schedule`/release → `ci:true`, `release:false`); `license.expression`
+  `Apache-2.0` read from `LICENSE`.
+
+**Honesty framing (carried in-file and here, not softened):**
+- GitGuardian `rulesets: ["default"]` is the schema's no-customization value but
+  is **not verifiable from this repo** (App config not visible).
+- The SBOM is **informational, NOT a trusted attestation** — signing deferred
+  (Section 17.5); this file does not change that.
+- `core-team` carries `name` + `primary` only — personal email omitted from a
+  **public** file (signing-identity migration off personal Gmail remains a GHES
+  backlog item).
+- `staticcheck` `rulesets` is a frozen mirror of `staticcheck.conf` with **no
+  automated SI-drift gate** (see 18.4); the human freshness procedure owns keeping
+  them in sync, and the in-file comment names `staticcheck.conf` as canonical.
+
+**Governed landing (discipline held end-to-end):** signed commit `8a0c8fa`
+(Verified) → 6 required checks green → the four AI Assistance attestations ticked
+by `digital-factory-dm` via description edit during review (the attribution
+discipline held — contrast the Section 17.6 deviation) → approval after the final
+commit → **merge commit `fe269a2`** (not rebase — signature chain intact) →
+branch deleted → local synced. Post-merge re-vet of the file on `develop`: clean.
+
+### 18.3 Validation toolchain & recipe (recorded so it is not tribal knowledge)
+
+The SI file is validated **locally** against the authoritative schema before
+commit. The recipe is recorded here as a real artifact (not session-bound memory)
+because the enforced CI equivalent is deferred (18.4):
+
+- **Tool:** `cue` **v0.16.1** (`cuelang.org/go/cmd/cue`), pinned via the Go `tool`
+  directive in a **separate validation workspace** — NOT the repo `go.mod` (see
+  18.4). Go-native and air-gap-portable like the rest of the toolchain; the CUE
+  OCI module-registry path is dormant for loose-file vetting.
+- **Authoritative schema:** `ossf/security-insights` `spec/schema.cue` at tag
+  **v2.2.0**, vendored into the validation workspace.
+- **Invocation (offline-proven):**
+  `CUE_REGISTRY=bogus.invalid go tool cue vet -d '#SecurityInsights' <file> schema.cue`
+- **Expected signals (this IS the definition of "working"):** clean = **EXIT 0,
+  no output**; failure = **EXIT 1 with a constraint error naming the field**.
+  Proven by a deliberate `status`-enum break → `repository.status: 8 errors in
+  empty disjunction`, enumerating the valid enum. The teeth-test is the
+  documentation.
+- **Offline guarantee:** `CUE_REGISTRY` pointed at an unreachable host; vet passes
+  with **zero `downloading` lines** → no network path touched. Air-gap-clean.
+
+### 18.4 Deferral — enforced `si-validate` CI gate (with firing trigger)
+
+Validation of the SI file is currently the **documented local procedure** (18.3),
+NOT an enforced CI gate. An enforced **`si-validate`** required check (`cue` added
+to the repo `tool` directive + a vendored `schema.cue` + a CI job + registration
+as a 7th required check on both rulesets via the
+land→green-once→dropdown→throwaway-proof sub-procedure) is **DEFERRED**.
+
+- **Firing trigger (not open-ended):** lands **with the SBOM-style enforcement
+  plumbing, or at the GHES migration, whichever is first** — it rides the shared
+  `cue` + vendored-schema infrastructure those build anyway. Logged in the
+  Section 11 GHES backlog and Section 12.
+- **Rationale (change-rate asymmetry):** an enforced schema gate earns its keep in
+  proportion to how often the gated artifact changes and how likely a change is
+  malformed. The SI file is near-static and deliberately hand-edited (low churn,
+  low malformation probability); the SBOM is the inverse (mutates on every
+  dependency bump, often via automated PRs). The first required-check spend
+  belongs on the high-churn artifact, not this one.
+- **Residual (honest):** until the gate lands, the local recipe (18.3) is the
+  control, and its **human-execution residual** is the gap — the same class as the
+  (c) runbook's. Recorded, not hidden.
+
+---
 ## Change Log
 
 | Date | Author | Change |
@@ -697,3 +857,4 @@ merely choreographed.)
 | 2026-06-12 | Cedric Kiama Wachira | OpenSSF Hardening Phase 2 (AI guardrails, LFEL1012) complete via PRs #21–#23: `AGENTS.md` + CODEOWNERS guard; PR-template AI Assistance checklist with reviewer attestation (enforcement-visibility proven on PR #23 first render); `docs/AGENT_RUNTIME_DESIGN.md` lethal-trifecta design (design-only by ratified decision, THREAT_MODEL.md §2 back-link). Interim Scorecard 7.1→7.2 (CI-Tests 9→10); evidence `docs/scorecard-phase2-interim.json`. Added Section 16. `chore/*` branch-prefix deviation recorded on PR #22; CONTRIBUTING amendment follows in closeout PR 2. |
 | 2026-06-12 | Cedric Kiama Wachira | Toolchain patch bump go 1.26.1 → 1.26.4: 18 Go stdlib advisories (all `stdlib@go1.26.1`, 0 reachable per symbol-level govulncheck) surfaced incidentally during Phase 3 SBOM-tool verification (PR #26). Bumped `go.mod` directive, CI guard assertion, and `setup-go` pins in lockstep; local toolchain upgraded first (tarball SHA-256 verified against go.dev release metadata). Doc sweep: README, AGENTS.md, Sections 2/6/8/13, THREAT_MODEL.md. Section 15.3 left as contemporaneous history. Known gap recorded in Section 12: no scheduled toolchain-freshness watcher. |
 | 2026-06-12 | Cedric Kiama Wachira | OpenSSF Hardening Phase 3 (artifact integrity, scoped) complete: option 3 ratified (SBOM now, signing deferred — keyless/SLSA infeasible in air-gapped GHES); cyclonedx-gomod v1.10.0 via tool directive (PR #26); committed module SBOM `sbom/bom.json` with deterministic flags (PR #31); `supply-chain / sbom-drift` freshness gate, sixth required check on both rulesets, proven by throwaway PR #33 (RED + Required). Detours absorbed through the governed gate: toolchain bump 1.26.1->1.26.4 (PR #30, 18 stdlib advisories -> 0) and an 11-alert Dependabot security wave (PR #29; #27/#28 auto-superseded). Deferrals with consequences in 17.5; attestation deviation + restoration in 17.6. Added Section 17. |
+| 2026-06-14 | Cedric Kiama Wachira | OpenSSF Hardening Phase 4 (Security Insights & Self-Assessment) STARTED; recorded in-phase (Section 18). Deliverable (c) toolchain-freshness runbook `docs/TOOLCHAIN_FRESHNESS.md` (PR #36, merge `32ebd12`) — human-executed compensating control closing the staleness gap (Section 17.2 / Section 12). Deliverable (a) OpenSSF Security Insights `.github/security-insights.yml`, schema v2.2.0 (PR #37, merge `fe269a2`) — single-repo posture, every `tools[]` assertion read from a repo artifact, validated offline with pinned `cue` v0.16.1 (clean + deliberate-break teeth-test). Filename corrected to lowercase vs plan §7. Local cue-vet recipe recorded (18.3); enforced `si-validate` CI gate deferred with a firing trigger (18.4). Deliverables (b) self-assessment and (d) Scorecard re-measure PENDING — Phase 4 remains in progress; Scorecard not yet re-measured. |
