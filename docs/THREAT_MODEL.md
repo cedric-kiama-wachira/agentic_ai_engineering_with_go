@@ -1,6 +1,6 @@
 # Threat Model - Agentic AI Lab (Go)
 
-**Status:** Phase 1 (lightweight) · **Version:** 1.0 · **Last updated:** 2026-06-07
+**Status:** Phase 1 (lightweight) · **Version:** 1.1 · **Last updated:** 2026-06-14
 **Maintainer:** Cedric Kiama Wachira
 
 > **Scope note.** This document models the **current** state of the system: a
@@ -10,8 +10,9 @@
 > content, tools, private data, and network egress (the "lethal trifecta") -
 > will be added here as application code is written (Phase 2 onward). This
 > lightweight artifact is intentionally scoped to what exists; the full
-> STRIDE/data-flow-level analysis lands in the **Phase 4 security
-> self-assessment** (LFEL1005), once there is a running system to analyze.
+> STRIDE/data-flow-level analysis lands **here (in §2) once runtime code
+> exists** to be analyzed. The Phase 4 security self-assessment (LFEL1005)
+> records this deferral rather than performing it - no runtime existed at Phase 4.
 
 ---
 
@@ -39,7 +40,7 @@ The surfaces that exist today:
 ```
 author ── signed commit ──> feature branch ── PR ──> CI runners ──> GitHub (develop/main)
                                                |
-                                 (5 required checks + independent review)
+                                 (6 required checks + independent review)
 ```
 
 - **Author to repository:** every change is a signed (Ed25519, verified)
@@ -161,9 +162,11 @@ release workstream requires a build-resolved `app`/`bin` SBOM.
 - **No fuzzing.** Not yet present (cf. Scorecard's Fuzzing heuristic). A
   candidate once the runtime has parseable inputs / tool-call boundaries.
 - **Scope of this document.** This is the **Phase-1 lightweight** threat model.
-  STRIDE/data-flow-level rigor is deferred to the **Phase 4 security
-  self-assessment (LFEL1005)**, when the runtime exists to be analyzed - so the
-  intentional thinness here is a sequencing decision, not an analysis gap.
+  STRIDE/data-flow-level rigor is deferred until runtime code exists to be
+  analyzed, at which point it lands in §2 of this document - so the intentional
+  thinness here is a sequencing decision, not an analysis gap. The Phase 4
+  security self-assessment (LFEL1005) records this deferral; it does not perform
+  the analysis, since no runtime existed at Phase 4.
 
 ---
 
