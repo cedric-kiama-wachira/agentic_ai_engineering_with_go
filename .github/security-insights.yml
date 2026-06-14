@@ -1,0 +1,101 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-06-14'
+  last-reviewed: '2026-06-14'
+  url: https://raw.githubusercontent.com/cedric-kiama-wachira/agentic_ai_engineering_with_go/develop/.github/security-insights.yml
+  comment: >-
+    Single-repository Security Insights for the Agentic AI Lab (Go). Authored as
+    part of the OpenSSF Foundation hardening (Phase 4). header.url is pinned to
+    the develop branch raw path; it tracks the latest governed state until a
+    release/tag flow exists.
+
+repository:
+  status: active
+  url: https://github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  core-team:
+    - name: Cedric Kiama Wachira
+      primary: true
+  license:
+    url: https://www.apache.org/licenses/LICENSE-2.0
+    expression: Apache-2.0
+  documentation:
+    contributing-guide: https://github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go/blob/develop/CONTRIBUTING.md
+    governance: https://github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go/blob/develop/docs/REPO_SETUP.md
+    security-policy: https://github.com/cedric-kiama-wachira/agentic_ai_engineering_with_go/blob/develop/SECURITY.md
+  security:
+    assessments:
+      self:
+        comment: >-
+          No formal third-party security assessment has been performed. The
+          repository is hardened per the OpenSSF Foundation baseline: enforced
+          branch rulesets (signed commits, required status checks, restricted
+          deletions, blocked force-pushes), a five-job CI gate, a committed
+          CycloneDX SBOM with a drift-detection gate, governed Dependabot, and a
+          documented threat model. Authenticity attestation (signing) of the
+          SBOM is deferred; the SBOM is informational, not a trusted attestation.
+    tools:
+      - name: govulncheck
+        type: SCA
+        comment: >-
+          Go vulnerability scanner (go tool govulncheck), CI job
+          `security / govulncheck`. Also run weekly by hand per the toolchain
+          freshness runbook (docs/TOOLCHAIN_FRESHNESS.md) — hence adhoc: true.
+        rulesets: ["default"]
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+      - name: gosec
+        type: SAST
+        comment: >-
+          Go security static analysis (go tool gosec), CI job
+          `security / gosec`. Runs the full default ruleset; CI flags govern
+          #nosec handling only, not rule selection.
+        rulesets: ["default"]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+      - name: staticcheck
+        type: other
+        comment: >-
+          Go correctness/quality linter (go tool staticcheck), CI job
+          `quality / staticcheck`. Not a security scanner. rulesets below is a
+          frozen mirror of staticcheck.conf — that file is the canonical source
+          of truth; no automated SI-drift gate keeps them in sync (the human
+          freshness runbook owns this).
+        rulesets: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+      - name: GitGuardian
+        type: secret
+        comment: >-
+          Secret scanning via the GitGuardian GitHub App (required check
+          `GitGuardian Security Checks`). rulesets ["default"] is the schema's
+          no-customization value; the App's actual configuration is not
+          verifiable from this repository.
+        rulesets: ["default"]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+      - name: cyclonedx-gomod
+        type: other
+        comment: >-
+          CycloneDX SBOM generator (go tool cyclonedx-gomod), CI job
+          `supply-chain / sbom-drift`. Produces the committed module SBOM
+          (sbom/bom.json) and gates drift; not a finding-producing scanner.
+        rulesets: ["default"]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
