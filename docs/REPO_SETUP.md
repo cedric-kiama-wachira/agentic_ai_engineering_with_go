@@ -5,7 +5,7 @@
 **Branching model:** Git Flow
 **Record prepared:** 2026-06-05 · **Last updated:** 2026-06-14
 **Prepared by:** Cedric Kiama Wachira (repository architect)
-**Status:** Bootstrap + OpenSSF Phases 0–3 complete; Phase 4 in progress (deliverables (a), (c) landed) — pending migration to air-gapped GitHub Enterprise Server (GHES)
+**Status:** Bootstrap + OpenSSF Phases 0–4 complete — pending migration to air-gapped GitHub Enterprise Server (GHES)
 
 > **Auditor note.** This document records the controls configured during the
 > bootstrap phase, the evidence that each was verified on live artifacts, and
@@ -256,6 +256,7 @@ functioning detect-and-correct process, not an absence of problems.
 | 3 | Stray compiled binary `agent` in repo root after `go build ./...` | `go build ./...` emits the binary into the working directory | Removed the binary; hardened `.gitignore` (`/agent`, `coverage.out`); build artifacts excluded |
 | 4 | Required-checks list contained a non-functional "GitGuardian / Any source" entry | Free-text check name added in error; nothing reports a check by that literal name → would block all merges as permanently pending | Removed the stray entry; required only the real `GitGuardian Security Checks` |
 | 5 | **Ruleset enforcement silently disabled** (rulesets showed grey/disabled; PR review became optional) | Repository visibility was set to **private** on a personal Free account, where rulesets are not enforced on private repos | Reverted visibility to **public**; enforcement immediately restored. **Permanent remediation: migration to air-gapped GHES** (Section 11), where private + enforced is the default |
+| 6 | **Stale Scorecard PAT live in-shell and persisted in `~/.bashrc`** — the env guard before the Phase 4 (d) measure reported `GITHUB_AUTH_TOKEN` already SET | A prior token's value was left exported in the running shell and saved as a commented `export` in `~/.bashrc`; an earlier "purge verified" claim had missed both the live-shell export and the rc-file persistence (a commented secret is still a secret on disk) | Revoked server-side; `unset` in-shell; deleted the `~/.bashrc` line; purged 4 `github_pat_` history hits (file + `history -c`); verified env/rc/history clean. The replacement measure used a minimal-scope PAT via interactive prompt-read (never inline, never to disk), used once then revoked. Root cause: a naive purge that does not clear the live shell and rc files leaves the secret recoverable. See §18.6 |
 
 **Process note:** incident #5 is the most significant — a control that silently
 stops enforcing yields false confidence. The lesson adopted: enforcement must be
@@ -687,16 +688,16 @@ merely choreographed.)
 
 ---
 
-## 18. OpenSSF Hardening — Phase 4 (Security Insights & Self-Assessment) — IN PROGRESS
+## 18. OpenSSF Hardening — Phase 4 (Security Insights & Self-Assessment)
 
-> **Status (mid-phase).** Phase 4 is **in progress**. Deliverables **(c)**
-> toolchain-freshness runbook and **(a)** Security Insights file are COMPLETE and
-> landed via governed PRs; **(b)** prose self-assessment and **(d)** formal
-> Scorecard re-measure are PENDING. This section is written in-phase as each
-> deliverable lands — per the in-phase audit rule (the Phase 1 omission, Section 15
-> recording note, is the precedent not to repeat); (b) and (d) are appended here on
-> completion. **Scorecard is NOT re-measured until (d)** — the trend
-> (5.0 → 5.6 → 7.1 → 7.2 → 7.2, pinned v5.4.0) is unchanged by this phase so far.
+> **Status.** Phase 4 is **COMPLETE**. All four deliverables landed via governed
+> PRs and are recorded below: **(a)** Security Insights file (§18.2), **(b)** prose
+> self-assessment (§18.5), **(c)** toolchain-freshness runbook (§18.1), **(d)**
+> formal Scorecard re-measure (§18.6); the validation recipe (§18.3) and the
+> deferred `si-validate` gate (§18.4) round out the section. Recorded in-phase per
+> the audit rule (the Phase 1 omission, Section 15 recording note, is the precedent
+> not to repeat). **Scorecard re-measure: 7.2 / 10 — flat and pre-registered**
+> (trend 5.0 → 5.6 → 7.1 → 7.2 → 7.2 → 7.2, pinned v5.4.0 throughout; see §18.6).
 
 Phase 4 delivers the project's machine- and human-readable security-posture
 documentation: an OpenSSF Security Insights file, a prose self-assessment, the
@@ -844,6 +845,65 @@ land→green-once→dropdown→throwaway-proof sub-procedure) is **DEFERRED**.
   control, and its **human-execution residual** is the gap — the same class as the
   (c) runbook's. Recorded, not hidden.
 
+### 18.5 Deliverable (b) — Security self-assessment (PR #39, merge `5d1489b`)
+
+`docs/SECURITY_SELF_ASSESSMENT.md` — the prose security self-assessment (LFEL1005),
+"the artifact an auditor reads first." Plan-driven structure (master plan §7),
+right-sized for the **pre-runtime** state: overview, scope & trust boundaries,
+control inventory, verification posture & gaps, residual risks & deliberate
+deferrals, an informational EU-CRA alignment note (UAE-based; not a current
+obligation), and cross-references. Every claim is grounded in a repo artifact —
+the control inventory cites this record's sections; trust boundaries and
+supply-chain framing cite `docs/THREAT_MODEL.md`. Honesty framing carried, not
+softened: no runtime ⇒ STRIDE/DFD deferred to `THREAT_MODEL.md` §2 when code lands
+(a design document is not a control); the precise **6 required checks = 5 CI jobs +
+GitGuardian**; SBOM informational-not-attested; the toolchain-freshness runbook a
+compensating, human-executed control; separation-of-duties interim; no
+DAST/fuzzing/runtime; SAST 0/10 a Scorecard detection blind spot. The Scorecard
+number was stated as history, with the (d) re-measure deliberately not pre-stated.
+
+A follow-up reconciled two `THREAT_MODEL.md` items surfaced while authoring
+(PR #40, merge `b8c3de9`): the §2 trust-boundary diagram read "5 required checks"
+(stale since Phase 3 added the sixth) — corrected to 6 so §2 and §4 agree; and the
+STRIDE forward-references (header + §5) were repointed to "§2 once runtime exists"
+rather than "the Phase 4 self-assessment," so TM and the self-assessment agree on
+where the deferred analysis lands. TM metadata bumped to v1.1 / 2026-06-14.
+
+### 18.6 Deliverable (d) — Formal Scorecard re-measure (PR #41, merge `5b40fc8`)
+
+`docs/scorecard-phase4.json` — the formal Phase 4 re-measure (LFEL1006), same
+pinned binary **v5.4.0** as every prior run (the JSON carries `.scorecard.version`
+v5.4.0; the instrument was never floated mid-trend).
+
+**Result pre-registered before measuring, then confirmed: aggregate 7.2 / 10,
+flat.** Phase 4 added documentation/posture artifacts that Scorecard does not
+score, and no Scorecard-measured control changed since Phase 3 — so flat is the
+correct, predicted outcome, not a regression. Per-check results matched the
+pre-registration; the low scores are the documented, deliberate ones:
+- **SAST 0** — detection blind spot (Scorecard cannot see `go tool gosec` /
+  `staticcheck`); the gates are real and required. Not chased.
+- **Signed-Releases −1, Packaging −1** — signing deferred / no releases
+  (not-applicable; excluded from the aggregate). Not chased into a keyless build.
+- **Branch-Protection 5** — the deliberate develop-relaxed split, read with proper
+  Administration:Read token scope (no scope artifact).
+- **Maintained 0** — repo age floor (<90 days); resolves with time, not work.
+- **9–10:** CI-Tests, Code-Review, Pinned-Dependencies, Dependency-Update-Tool,
+  Vulnerabilities, License, Security-Policy, Token-Permissions, Dangerous-Workflow,
+  Binary-Artifacts.
+
+**Scorecard trend: 5.0 → 5.6 → 7.1 → 7.2 → 7.2 → 7.2** (v5.4.0 throughout).
+
+**Measurement hygiene (PAT lifecycle).** A fresh minimal-scope fine-grained PAT
+(Contents R/O + Metadata R/O + Administration R/O — the last so Branch-Protection
+reads truthfully — this repo only, 7-day expiry) was minted, loaded via an
+interactive prompt-read (`read -rsp`, never an inline `export`, never written to
+disk), used once, then **revoked server-side and unset**, with env/rc/history
+verified clean. Before the run, the env guard caught a **stale prior token still
+exported in-shell and persisted (commented) in `~/.bashrc`** — recorded as incident
+#6 (Section 10) and removed first. The lesson: a token is not "handled" until it is
+gone server-side, out of the live shell, and absent from files and history — a
+naive purge satisfies none of those.
+
 ---
 ## Change Log
 
@@ -858,3 +918,4 @@ land→green-once→dropdown→throwaway-proof sub-procedure) is **DEFERRED**.
 | 2026-06-12 | Cedric Kiama Wachira | Toolchain patch bump go 1.26.1 → 1.26.4: 18 Go stdlib advisories (all `stdlib@go1.26.1`, 0 reachable per symbol-level govulncheck) surfaced incidentally during Phase 3 SBOM-tool verification (PR #26). Bumped `go.mod` directive, CI guard assertion, and `setup-go` pins in lockstep; local toolchain upgraded first (tarball SHA-256 verified against go.dev release metadata). Doc sweep: README, AGENTS.md, Sections 2/6/8/13, THREAT_MODEL.md. Section 15.3 left as contemporaneous history. Known gap recorded in Section 12: no scheduled toolchain-freshness watcher. |
 | 2026-06-12 | Cedric Kiama Wachira | OpenSSF Hardening Phase 3 (artifact integrity, scoped) complete: option 3 ratified (SBOM now, signing deferred — keyless/SLSA infeasible in air-gapped GHES); cyclonedx-gomod v1.10.0 via tool directive (PR #26); committed module SBOM `sbom/bom.json` with deterministic flags (PR #31); `supply-chain / sbom-drift` freshness gate, sixth required check on both rulesets, proven by throwaway PR #33 (RED + Required). Detours absorbed through the governed gate: toolchain bump 1.26.1->1.26.4 (PR #30, 18 stdlib advisories -> 0) and an 11-alert Dependabot security wave (PR #29; #27/#28 auto-superseded). Deferrals with consequences in 17.5; attestation deviation + restoration in 17.6. Added Section 17. |
 | 2026-06-14 | Cedric Kiama Wachira | OpenSSF Hardening Phase 4 (Security Insights & Self-Assessment) STARTED; recorded in-phase (Section 18). Deliverable (c) toolchain-freshness runbook `docs/TOOLCHAIN_FRESHNESS.md` (PR #36, merge `32ebd12`) — human-executed compensating control closing the staleness gap (Section 17.2 / Section 12). Deliverable (a) OpenSSF Security Insights `.github/security-insights.yml`, schema v2.2.0 (PR #37, merge `fe269a2`) — single-repo posture, every `tools[]` assertion read from a repo artifact, validated offline with pinned `cue` v0.16.1 (clean + deliberate-break teeth-test). Filename corrected to lowercase vs plan §7. Local cue-vet recipe recorded (18.3); enforced `si-validate` CI gate deferred with a firing trigger (18.4). Deliverables (b) self-assessment and (d) Scorecard re-measure PENDING — Phase 4 remains in progress; Scorecard not yet re-measured. |
+| 2026-06-14 | Cedric Kiama Wachira | OpenSSF Hardening Phase 4 COMPLETE. Deliverable (b) security self-assessment `docs/SECURITY_SELF_ASSESSMENT.md` (PR #39, merge `5d1489b`); THREAT_MODEL reconciliation — §2 diagram 5→6, STRIDE forward-ref repointed to §2-when-runtime, v1.1 (PR #40, merge `b8c3de9`); deliverable (d) formal Scorecard re-measure `docs/scorecard-phase4.json` (PR #41, merge `5b40fc8`): 7.2/10 flat and pre-registered, pinned v5.4.0, trend 5.0→5.6→7.1→7.2→7.2→7.2. Added §18.5/§18.6; flipped §18 to COMPLETE and header status to Phases 0–4 complete. PAT-hygiene incident #6 recorded (stale token live in-shell + persisted in ~/.bashrc; revoke→purge→verify; minimal-scope prompt-read PAT used once and revoked). |
